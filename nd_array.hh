@@ -15,7 +15,7 @@
 namespace ddf {
 
 // multi dimensional array where each element is of type _T_numeric and the
-// array has _N_dim dimensions
+// array has _n_dim dimensions
 template <typename _numeric_type, int _n_dim>
 struct nd_array_base {
     typedef _numeric_type numeric_type;
@@ -235,7 +235,7 @@ struct nd_array_base {
                                                 // dimension
 };
 
-#define ND_ARRAY_COMMON_PROCEDURES                                  \
+#define ND_ARRAY_COMMON_PROCEDURES(n)                               \
     nd_array(const nd_array &) = default;                           \
     nd_array(nd_array &&) = default;                                \
                                                                     \
@@ -244,11 +244,11 @@ struct nd_array_base {
         return *reinterpret_cast<nd_array *>(&base);                \
     }                                                               \
     nd_array & operator = (const nd_array &v) {                     \
-        nd_array_base<_numeric_type, 1>::operator = (v);            \
+        nd_array_base<_numeric_type, n>::operator = (v);            \
         return *this;                                               \
     }                                                               \
     nd_array & operator = (nd_array &&v) {                          \
-        nd_array_base<_numeric_type, 1>::operator = (std::move(v)); \
+        nd_array_base<_numeric_type, n>::operator = (std::move(v)); \
         return *this;                                               \
     }
 
@@ -264,7 +264,7 @@ struct nd_array : nd_array_base<_numeric_type, _n_dim> {
         : nd_array_base<_numeric_type, _n_dim>(shape, data, owned) {
     }
 
-    ND_ARRAY_COMMON_PROCEDURES;
+    ND_ARRAY_COMMON_PROCEDURES(_n_dim);
 };
 
 // special optimized version for 1-d arrays
@@ -283,7 +283,7 @@ struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
         : nd_array_base<_numeric_type, 1>({len}, data, owned) {
     }
 
-    ND_ARRAY_COMMON_PROCEDURES;
+    ND_ARRAY_COMMON_PROCEDURES(1);
 
     int size() const {
         return this->shape(0);
@@ -294,7 +294,7 @@ struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
         if (this->_buf_size != new_size) {
             this->operator = (nd_array(new_size));
         }
-    }        
+    }
 
     _numeric_type &operator() (int n0) const {
         assert(("0th dimension access boundary check", n0 < this->_shape[0]));
@@ -330,7 +330,7 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         : nd_array_base<_numeric_type, 2>({m, n}, data, owned) {
     }
 
-    ND_ARRAY_COMMON_PROCEDURES;
+    ND_ARRAY_COMMON_PROCEDURES(2);
 
     _numeric_type &operator() (int n0, int n1) const {
         assert(("0th dimension access boundary check", n0 < this->_shape[0]));
@@ -338,9 +338,32 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         return this->_raw_data[n0 * this->_dim_size[0] + n1];
     }
 
+    // resize without zeroing all elements 
+    void resize(int m, int n) {
+        if (this->_shape[0] != m || this->_shape[1] != n) {
+            this->operator = (nd_array(m, n));
+        }
+    }
+
+    // set the value of column col to specified vector value
+    void set_column(int col, const nd_array<_numeric_type, 1> &v) {
+        int v_size = v.size();
+        assert(("matrix-vector dimension should match", v_size == this->shape(0)));
+        for (int row = 0; row < v_size; row++) {
+            (*this)(row, col) = v[row];
+        }
+    }
+
     // matrix-vector multiplication
     nd_array<_numeric_type, 1> operator * (const nd_array<_numeric_type, 1> &v) {
         nd_array<_numeric_type, 1> ret(0);
+        mult(v, ret);
+        return ret;
+    }
+
+    // matrix-matrix multiplication
+    nd_array<_numeric_type, 2> operator * (const nd_array<_numeric_type, 2> &v) {
+        nd_array<_numeric_type, 2> ret(0,0);
         mult(v, ret);
         return ret;
     }
@@ -354,6 +377,23 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         res.resize(m);
         for (int i = 0; i < m; i++) {
             res[i] = v.dot(nd_array<_numeric_type, 1>(n, &self(i)));
+        }
+    }
+
+    void mult(
+        const nd_array<_numeric_type, 2> &b, nd_array<_numeric_type, 2> &res) {
+        nd_array_base<_numeric_type, 2> &self = *this;
+        int m = self.shape(0), n = self.shape(1);
+        int bm = b.shape(0), bn = b.shape(1);
+        assert(("matrices can be multiplied", n == bm));
+        res.resize(m, bn);
+
+        for (int j = 0; j < bn; j++) {
+            for (int i = 0; i < m; i++) {
+                for (int k = 0; k < n; k++) {
+                    res(i, j) += self(i, k) * b(k, j);
+                }
+            }
         }
     }
 };

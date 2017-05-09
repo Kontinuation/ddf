@@ -20,20 +20,30 @@ struct math_op {
     virtual ~math_op(void) = default;
     virtual void f_x(const vector<numeric_type> &x,
                      vector<numeric_type> &y) = 0;
-    // a fallback implementation of derivative
-    virtual void df_x(
-        const vector<numeric_type> &x, vector<numeric_type> &y,
-        int dim) {
-        assert(("dimension bounds check", dim < x.size()));
+
+    // Df_x is the Jacobian matrix of f_x
+    // This is a fallback implementation of partial derivatives
+    virtual void Df_x(
+        const vector<numeric_type> &x, matrix<numeric_type> &y) {
         numeric_type delta = 1e-6;
-        numeric_type x_dim = x[dim];
-        vector<numeric_type> y0 = y.clone();
+
+        // get dimension of f(x)
+        ddf::vector<numeric_type> y0(0);
         f_x(x, y0);
-        x[dim] += delta;
-        f_x(x, y);
-        x[dim] = x_dim;
-        y -= y0;
-        y *= (1 / delta);
+        int x_size = x.size(), y_size = y0.size();
+        y = ddf::matrix<numeric_type>(y_size, x_size);
+
+        // calculate derivatives
+        for (int dim = 0; dim < x_size; dim++) {
+            numeric_type x_dim = x[dim];
+            x[dim] += delta;
+            ddf::vector<numeric_type> y1(y_size);
+            f_x(x, y1);
+            x[dim] = x_dim;
+            y1 -= y0;
+            y1 *= (1 / delta);
+            y.set_column(dim, y1);
+        }
     }
     char _name[64];
 };
@@ -54,13 +64,14 @@ struct matrix_mult: math_op<numeric_type> {
         mat.mult(_v, y);
     }
 
-    void df_x(const vector<numeric_type> &x, vector<numeric_type> &y, int dim) {
+    void Df_x(const vector<numeric_type> &x, matrix<numeric_type> &y) {
         matrix<numeric_type> mat = matrix_view_of(x);
         int m = mat.shape(0), n = mat.shape(1);
-        assert(("dimension bounds check", dim < m * n));
-        y.resize(m);
+        y.resize(m, x.size());
         y.fill(0);
-        y[dim / n] = _v[dim % n];
+        for (int dim = 0; dim < x.size(); dim++) {
+            y(dim / n, dim) = _v[dim % n];
+        }
     }
 
     matrix<numeric_type> matrix_view_of(const vector<numeric_type> &x) const {

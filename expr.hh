@@ -14,10 +14,13 @@ namespace ddf {
 
 template <typename _numeric_type>
 struct math_expr {
-    virtual math_expr *derivative(const char *var, int dim) = 0;
-    virtual void eval(vector<_numeric_type> &y) = 0;
+    virtual math_expr *derivative(const char *var) = 0;
     virtual math_expr *clone(void) const = 0;
     virtual std::string to_string() const = 0;
+    virtual void eval(vector<_numeric_type> &y) = 0;
+    virtual void grad(matrix<_numeric_type> &m) {
+        assert(("cannot calculate grad on this expr", false));
+    }
 };
 
 // forward declarations for recursive datatypes
@@ -34,12 +37,12 @@ struct constant: math_expr<numeric_type> {
     constant(const vector<numeric_type> &v): _v(v) {
     }
 
-    math_expr<numeric_type> *derivative(const char *, int) {
+    math_expr<numeric_type> *derivative(const char *) {
         return nullptr;
     }
 
     void eval(vector<numeric_type> &y) {
-        y = _v.clone();
+        y.copy_from(_v);
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -51,6 +54,38 @@ struct constant: math_expr<numeric_type> {
     }
 
     vector<numeric_type> _v;
+};
+
+template <typename numeric_type>
+struct identity: math_expr<numeric_type> {
+    identity(int size): _size(size) {
+    }
+
+    math_expr<numeric_type> *derivative(const char *) {
+        return nullptr;
+    }
+
+    void eval(vector<numeric_type> &) {
+        assert(("could not evaluate identity as vector", false));
+    }
+
+    void grad(matrix<numeric_type> &m) {
+        m.resize(_size, _size);
+        m.fill(0);
+        for (int i = 0; i < _size; i++) {
+            m(i,i) = 1;
+        }
+    }
+
+    math_expr<numeric_type> *clone(void) const {
+        return new identity(_size);
+    }
+
+    std::string to_string() const {
+        return "I";
+    }
+
+    int _size;
 };
 
 // dx/dx = 1
@@ -66,13 +101,9 @@ struct variable: math_expr<numeric_type> {
         _val = val.clone();             // _val.copy_from(val);
     }
 
-    math_expr<numeric_type> *derivative(const char *var, int dim) {
+    math_expr<numeric_type> *derivative(const char *var) {
         if (!strcmp(var, _var)) {
-            int n = _val.size();
-            assert(("dimension boundary check", dim < n));
-            vector<numeric_type> c(n);
-            c[dim] = 1;
-            return new constant<numeric_type>(c);
+            return new identity<numeric_type>(_val.size());
         } else {
             return nullptr;
         }
@@ -101,12 +132,10 @@ struct function_call: math_expr<numeric_type> {
         : _op(op), _arg(arg) {
     }
 
-    math_expr<numeric_type> *derivative(const char *var, int dim) {
-        math_expr<numeric_type> *d_arg = _arg->derivative(var, dim);
+    math_expr<numeric_type> *derivative(const char *var) {
+        math_expr<numeric_type> *d_arg = _arg->derivative(var);
         if (d_arg) {
-            return new multiplication<numeric_type>(
-                new dfunction_call<numeric_type>(_op, _arg, dim),
-                d_arg);
+            return new dfunction_call<numeric_type>(_op, _arg->clone(), d_arg);
         } else {
             return nullptr;
         }
@@ -134,32 +163,43 @@ struct function_call: math_expr<numeric_type> {
 template <typename numeric_type>
 struct dfunction_call: math_expr<numeric_type> {
     dfunction_call(
-        math_op<numeric_type> *op, math_expr<numeric_type> *arg, int dim)
-        : _op(op), _arg(arg), _dim(dim) {
+        math_op<numeric_type> *op, math_expr<numeric_type> *arg,
+        math_expr<numeric_type> *d_arg)
+        : _op(op), _arg(arg), _d_arg(d_arg) {
     }
 
-    math_expr<numeric_type> *derivative(const char *var, int dim) {
+    math_expr<numeric_type> *derivative(const char *var) {
         assert(("second-order derivatives could not be evaluated", false));
         return nullptr;
     }
 
     void eval(vector<numeric_type> &y) {
+        assert(("could not evaluate derivative as vector", false));
+    }
+
+    void grad(matrix<numeric_type> &m) {
+        matrix<numeric_type> D_f(0, 0);
+        matrix<numeric_type> D_g(0, 0);
         vector<numeric_type> x(0);
+
         _arg->eval(x);
-        _op->df_x(x, y, _dim);
+        _op->Df_x(x, D_f);
+        _d_arg->grad(D_g);
+        m = D_f * D_g;
     }
 
     math_expr<numeric_type> *clone(void) const {
-        return new dfunction_call(_op, _arg->clone(), _dim);
+        return new dfunction_call(_op, _arg->clone(), _d_arg);
     }
 
     std::string to_string() const {
-        return ("d " + std::string(_op->_name)) + "(" + _arg->to_string() + ")";
+        return ("D " + std::string(_op->_name)) + "(" + _arg->to_string() + ") "
+            + _d_arg->to_string();
     }
     
     math_op<numeric_type> *_op;
     math_expr<numeric_type> *_arg;
-    int _dim;
+    math_expr<numeric_type> *_d_arg;
 };
 
 // d(a + b)/dx = da/dx + db/dx
@@ -169,9 +209,10 @@ struct addition: math_expr<numeric_type> {
         : _a(a), _b(b) {
     }
 
-    math_expr<numeric_type> *derivative(const char *var, int dim) {
-        auto d_a = _a->derivative(var, dim);
-        auto d_b = _b->derivative(var, dim);
+    math_expr<numeric_type> *derivative(const char *var) {
+        auto d_a = _a->derivative(var);
+        auto d_b = _b->derivative(var);
+
         if (d_a && d_b) {
             return new addition<numeric_type>(d_a, d_b);
         } else if (d_a) {
@@ -188,6 +229,13 @@ struct addition: math_expr<numeric_type> {
         _a->eval(x);
         _b->eval(y);
         y += x;
+    }
+
+    void grad(matrix<numeric_type> &m) {
+        matrix<numeric_type> D_b(0, 0);
+        _a->grad(m);
+        _b->grad(D_b);
+        m += D_b;
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -209,9 +257,9 @@ struct multiplication: math_expr<numeric_type> {
         : _a(a), _b(b) {
     }
 
-    math_expr<numeric_type> *derivative(const char *var, int dim) {
-        auto d_a = _a->derivative(var, dim);
-        auto d_b = _b->derivative(var, dim);
+    math_expr<numeric_type> *derivative(const char *var) {
+        auto d_a = _a->derivative(var);
+        auto d_b = _b->derivative(var);
         if (d_a && d_b) {
             return new addition<numeric_type>(
                 new multiplication<numeric_type>(d_a, _b->clone()),
@@ -230,6 +278,10 @@ struct multiplication: math_expr<numeric_type> {
         _a->eval(x);
         _b->eval(y);
         y *= x;
+    }
+
+    void grad(matrix<numeric_type> &m) {
+        assert(("grad of f * g is not implemented yet", false));
     }
 
     math_expr<numeric_type> *clone(void) const {

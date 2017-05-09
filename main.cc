@@ -55,10 +55,9 @@ void test_matmul(void)
         printf("f_x%d: %s\n", k, y.to_string().c_str());
     }
 
-    for (int k = 0; k < w.size(); k++) {
-        op_matmul.df_x(w, y, k);
-        printf("df_x%d: %s\n", k, y.to_string().c_str());
-    }
+    ddf::matrix<double> D(0,0);
+    op_matmul.Df_x(w, D);
+    printf("Df_x: %s\n", D.to_string().c_str());
 }
 
 void test_softmax(void)
@@ -79,11 +78,9 @@ void test_softmax(void)
     op_DS.f_x(w, y);
     printf("f_x: %s\n", y.to_string().c_str());
 
-    for (int k = 0; k < 4; k++) {
-        // printf("w: %s\n", w.c_str());
-        op_DS.df_x(w, y, k);
-        printf("df_x%d: %s\n", k, y.to_string().c_str());
-    }
+    ddf::matrix<double> D(0,0);
+    op_DS.Df_x(w, D);
+    printf("Df_x: %s\n", D.to_string().c_str());
 
     op_DS.f_x(w, y);
     double delta = 1e-10;
@@ -137,14 +134,16 @@ void test_expr(void)
     cost->eval(y);
     printf("cost result: %s\n", y.to_string().c_str());
 
-    ddf::math_expr<double> *dcost = cost->derivative("w", 0);
+    ddf::math_expr<double> *dcost = cost->derivative("w");
     printf("d cost: %s\n", dcost->to_string().c_str());
-    // dcost->eval(y);
-    // printf("dcost result: %s\n", y.to_string().c_str());
+    ddf::matrix<double> dm(0,0);
+    dcost->grad(dm);
+    printf("dcost result: %s\n", dm.to_string().c_str());
 }
 
 int main(int argc, char *argv[])
 {
+    printf("Patchouli Go!\n");
     test_nd_array();
     test_softmax();
     test_matmul();
