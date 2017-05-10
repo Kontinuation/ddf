@@ -32,6 +32,22 @@ void test_nd_array(void)
 
     v1 = v2.clone();
     printf("v1: %s, v2: %s\n", v1.to_string().c_str(), v2.to_string().c_str());
+
+    double mat0[3][4] = {
+        { 1, 2, 3, 4 },
+        { 5, 6, 7, 8 },
+        { 9, 10, 11, 12},
+    };
+    double mat1[4][2] = {
+        { 1, 2 },
+        { 3, 4 },
+        { 5, 6 },
+        { 7, 8 },
+    };
+    ddf::matrix<double> m0(3,4, (double *) mat0);
+    ddf::matrix<double> m1(4,2, (double *) mat1);
+    ddf::matrix<double> m2 = m0 * m1;
+    printf("m2 = m0 * m1: %s\n", m2.to_string().c_str());
 }
 
 void test_matmul(void)
@@ -110,19 +126,24 @@ void test_expr(void)
     };
     double b0[3] = { 7, 13, 42 };
 
+    ddf::variable<double> *var_w =
+        new ddf::variable<double>("w", ddf::vector<double>(12, w0));
+    ddf::variable<double> *var_b =
+        new ddf::variable<double>("b", ddf::vector<double>(3, b0));
+
     // predict: w * x + b
     ddf::matrix_mult<double> matmul(ddf::vector<double>(4, x));
     ddf::math_expr<double> *predict =
         new ddf::addition<double>(
             new ddf::function_call<double>(
                 &matmul,
-                new ddf::variable<double>("w", ddf::vector<double>(12, w0))),
-            new ddf::variable<double>("b", ddf::vector<double>(3, b0)));
+                var_w),
+            var_b);
 
     // cost: DS(predict, l)
     ddf::softmax_cross_entropy_with_logits<double> DS(ddf::vector<double>(3, l));
     ddf::math_expr<double> *cost =
-        new ddf::function_call<double>(&DS, predict->clone());
+        new ddf::function_call<double>(&DS, predict /* predict->clone() */);
 
     printf("predict: %s\n", predict->to_string().c_str());
     printf("cost: %s\n", cost->to_string().c_str());
@@ -139,14 +160,135 @@ void test_expr(void)
     ddf::matrix<double> dm(0,0);
     dcost->grad(dm);
     printf("dcost result: %s\n", dm.to_string().c_str());
+
+    ddf::math_expr<double> *dcost_b = cost->derivative("b");
+    printf("d cost of b: %s\n", dcost_b->to_string().c_str());
+    ddf::matrix<double> dm_b(0,0);
+    dcost_b->grad(dm_b);
+    printf("dcost_b result: %s\n", dm_b.to_string().c_str());
+
+    double delta = 1e-6;
+    for (size_t k = 0; k < (sizeof w0) / (sizeof w0[0]); k++) {
+        double tmp = var_w->_val[k];
+        var_w->_val[k] += delta;
+        ddf::vector<double> y1(1);
+        cost->eval(y1);
+        printf("d w[%lu]: %f\n", k, (y1[0] - y[0]) / delta);
+        var_w->_val[k] = tmp;
+    }
+}
+
+template <typename numeric_type>
+struct myop_f: ddf::math_op<numeric_type> {
+    myop_f(void): ddf::math_op<numeric_type>("f") {
+    }
+
+    void f_x(const ddf::vector<numeric_type> &x, ddf::vector<numeric_type> &y) {
+        y.resize(3);
+        y[0] = sin(x[0]);
+        y[1] = x[0] - x[1];
+        y[2] = x[0] * x[1];
+    }
+
+    void Df_x(const ddf::vector<numeric_type> &x, ddf::matrix<numeric_type> &y) {
+        y.resize(3, 2);
+        y(0,0) = cos(x[0]);
+        y(0,1) = 0;
+        y(1,0) = 1;
+        y(1,1) = -1;
+        y(2,0) = x[1];
+        y(2,1) = x[0];
+    }
+};
+
+template <typename numeric_type>
+struct myop_g: ddf::math_op<numeric_type> {
+    myop_g(void): ddf::math_op<numeric_type>("g") {
+    }
+
+    void f_x(const ddf::vector<numeric_type> &x, ddf::vector<numeric_type> &y) {
+        y.resize(2);
+        y[0] = x[0] + x[1];
+        y[1] = x[0] * x[1];
+    }
+
+    void Df_x(const ddf::vector<numeric_type> &x, ddf::matrix<numeric_type> &y) {
+        y.resize(2, 2);
+        y(0,0) = 1;
+        y(0,1) = 1;
+        y(1,0) = x[1];
+        y(1,1) = x[0];
+    }
+};
+
+void test_fg() {
+    myop_f<double> f;
+    myop_g<double> g;
+    double x0[2] = { 0.3, 0.6 };
+
+    ddf::variable<double> *var_x = new ddf::variable<double>("x", ddf::vector<double>(2, x0));
+    ddf::math_expr<double> *fg =
+        new ddf::function_call<double>(
+            &f,
+            new ddf::function_call<double>(
+                &g,
+                var_x));
+
+    ddf::math_expr<double> *d_fg = fg->derivative("x");
+
+    printf("fg: %s\n", fg->to_string().c_str());
+    printf("d_fg: %s\n", d_fg->to_string().c_str());
+
+    ddf::vector<double> fg_val(0);
+    fg->eval(fg_val);
+    printf("fg_val: %s\n", fg_val.to_string().c_str());
+    fg->eval(fg_val);
+    printf("fg_val: %s\n", fg_val.to_string().c_str());
+    fg->eval(fg_val);
+    printf("fg_val: %s\n", fg_val.to_string().c_str());
+    fg->eval(fg_val);
+    printf("fg_val: %s\n", fg_val.to_string().c_str());
+
+    ddf::matrix<double> dfg_val(3, 2);
+    d_fg->grad(dfg_val);
+    printf("dfg_val: %s\n", dfg_val.to_string().c_str());
+
+    ddf::matrix<double> expected(3,2);
+    expected(0,0) = cos(x0[0] + x0[1]);
+    expected(0,1) = cos(x0[0] + x0[1]);
+    expected(1,0) = 1 - x0[1];
+    expected(1,1) = 1 - x0[0];
+    expected(2,0) = 2*x0[0]*x0[1] + x0[1]*x0[1];
+    expected(2,1) = 2*x0[0]*x0[1] + x0[0]*x0[0];
+    printf("expected: %s\n", expected.to_string().c_str());
+
+
+    double delta = 1e-6;
+    ddf::vector<double> fg_val1(0);
+
+    double tmp = var_x->_val[0];
+    var_x->_val[0] += delta;
+    fg->eval(fg_val1);
+    fg_val1 -= fg_val;
+    fg_val1 *= (1 / delta);
+    printf("dx0: %s\n", fg_val1.to_string().c_str());
+    var_x->_val[0] = tmp;
+    
+    var_x->_val[1] += delta;
+    fg->eval(fg_val1);
+    fg_val1 -= fg_val;
+    fg_val1 *= (1 / delta);
+    printf("dx1: %s\n", fg_val1.to_string().c_str());
+    var_x->_val[1] = tmp;    
 }
 
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
-    test_nd_array();
+    // test_nd_array();
     test_softmax();
-    test_matmul();
-    test_expr();
+    // test_matmul();
+    // test_expr();
+    // test_fg();
     return 0;
 }

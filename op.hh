@@ -95,6 +95,7 @@ struct softmax_cross_entropy_with_logits: math_op<numeric_type> {
     void f_x(const vector<numeric_type> &w, vector<numeric_type> &y) {
         numeric_type multiplier = 0;
         int n = w.size();
+        assert(("prediction size should match with label", n == _l.size()));
 
         // TODO: move calculation of multiplier as a common procedure
         for (int k = 0; k < n; k++) multiplier += exp(w[k]);
@@ -109,17 +110,18 @@ struct softmax_cross_entropy_with_logits: math_op<numeric_type> {
         y[0] = sum_ce;
     }
 
-    // void df_x(const vector<numeric_type> &w, vector<numeric_type> &y, int dim) {
+    // void Df_x(const vector<numeric_type> &w, matrix<numeric_type> &y) {
     //     numeric_type multiplier = 0;
     //     int n = w.size();
-    //     assert(("dimension bounds check", dim < n));
+    //     y.resize(1, n);
 
     //     // TODO: move calculation of multiplier as a common procedure
     //     for (int k = 0; k < n; k++) multiplier += exp(w[k]);
     //     multiplier = 1 / multiplier;
 
-    //     y.resize(1);
-    //     y[0] = _l[dim] - w[dim] * multiplier;
+    //     for (int i = 0; i < n; i++) {
+    //         y(0, i) = _l[i] - w[i] * multiplier;
+    //     }
     // }
 
     vector<numeric_type> _l;
