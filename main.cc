@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
         float *x = new float[dimension];
         float *l = new float[n_classes];
         std::fill_n(w0, len_w0, 0.1);
-        std::fill_n(b0, len_b0, 0.1);
+        std::fill_n(b0, len_b0, 0.0);
 
         ddf::variable<float> *var_w =
             new ddf::variable<float>("w", ddf::vector<float>(len_w0, w0));
@@ -59,45 +59,40 @@ int main(int argc, char *argv[]) {
                     var_w),
                 var_b);
 
-        // cost: DS(predict, l)
+        // loss: DS(predict, l)
         ddf::softmax_cross_entropy_with_logits<float>
             DS(ddf::vector<float>(n_classes, l));
-        ddf::math_expr<float> *cost =
+        ddf::math_expr<float> *loss =
         new ddf::function_call<float>(&DS, predict /* predict->clone() */);
 
-        // training process: gradient descent
-        // signal(SIGINT, [](int) {
-        //         g_signal_quit = true;
-        //     });
-
-        ddf::math_expr<float> *dcost_dw = cost->derivative("w");
-        ddf::math_expr<float> *dcost_db = cost->derivative("b");
+        ddf::math_expr<float> *dloss_dw = loss->derivative("w");
+        ddf::math_expr<float> *dloss_db = loss->derivative("b");
         ddf::vector<float> sum_dw(len_w0);
         ddf::vector<float> sum_db(n_classes);
         ddf::matrix<float> dw(0,0);
         ddf::matrix<float> db(0,0);
         ddf::vector<float> c(0);
-        float alpha = 0.00001;
+        float alpha = 0.5;
         // float alpha = 0.000003;
 
-        printf("len_w0: %d, len_b0: %d, dimension: %d, n_samples: %d\n", len_w0, len_b0, dimension, n_samples);
+        printf("len_w0: %d, len_b0: %d, dimension: %d, n_samples: %d, n_classes: %d\n",
+            len_w0, len_b0, dimension, n_samples, n_classes);
 
-        // float sum_cost = 0;
-        // for (int k = 0; k < n_samples; k++) {
-        //     std::copy_n(fea + k * dimension, dimension, x);
-        //     std::fill_n(l, n_classes, 0);
-        //     l[label[k]] = 1;
+        float sum_loss = 0;
+        for (int k = 0; k < n_samples; k++) {
+            std::copy_n(fea + k * dimension, dimension, x);
+            std::fill_n(l, n_classes, 0);
+            l[label[k]] = 1;
+            loss->eval(c);
+            sum_loss += c[0];
+        }
+        printf("initial loss: %f\n", sum_loss);
 
-        //     cost->eval(c);
-        //     sum_cost += c[0];
-        // }
-        // printf("initial cost: %f\n", sum_cost / n_samples);
-
-        // while (!g_signal_quit) {
-        for (int iter = 0; iter < 10; iter++) {
+        for (int iter = 0; iter < 100; iter++) {
+            sum_dw.fill(0);
+            sum_db.fill(0);
             for (int k = 0; k < n_samples; k++) {
 
-                // printf("sample: %d\n", k);
                 // copy training data to placeholder
                 std::copy_n(fea + k * dimension, dimension, x);
 
@@ -105,10 +100,12 @@ int main(int argc, char *argv[]) {
                 std::fill_n(l, n_classes, 0);
                 l[label[k]] = 1;
                 
-                dcost_dw->grad(dw);
-                dcost_db->grad(db);
+                dw.fill(0);
+                db.fill(0);
+                dloss_dw->grad(dw);
+                dloss_db->grad(db);
                 sum_dw += ddf::vector<float>(len_w0, dw.raw_data());
-                sum_db += ddf::vector<float>(len_b0, dw.raw_data());
+                sum_db += ddf::vector<float>(len_b0, db.raw_data());
             }
 
             sum_dw *= (alpha / n_samples);
@@ -116,42 +113,16 @@ int main(int argc, char *argv[]) {
             var_w->_val -= sum_dw;
             var_b->_val -= sum_db;
 
-            // cost->eval(c);
-            // c *= n_samples;
-            // printf("cost: %s\n", c.to_string().c_str());
-
-            // sum_cost = 0;
-            // for (int k = 0; k < n_samples; k++) {
-            //     std::copy_n(fea + k * dimension, dimension, x);
-            //     std::fill_n(l, n_classes, 0);
-            //     l[label[k]] = 1;
-            //     cost->eval(c);
-            //     sum_cost += c[0];
-            // }
-            // printf("cost [%d]: %f\n", iter, sum_cost / n_samples);
-
-            // printf("dw: %s\ndb: %s\n", sum_dw.to_string().c_str(), sum_db.to_string().c_str());
+            sum_loss = 0;
+            for (int k = 0; k < n_samples; k++) {
+                std::copy_n(fea + k * dimension, dimension, x);
+                std::fill_n(l, n_classes, 0);
+                l[label[k]] = 1;
+                loss->eval(c);
+                sum_loss += c[0];
+            }
+            printf("loss [%d]: %f\n", iter, sum_loss);
         }
-        // }
-        
-
-        // logging::info("initial loss: %f", lg.loss(theta));
-
-        // gradient_descent<std::function<void (float *, float *)> > gd;
-        // signal(SIGINT, [](int) {
-        //         g_signal_quit = true;
-        //     });
-        // int superstep = 0;
-        // while (!g_signal_quit) {
-        //     clock_t start = clock();
-        //     gd.solve(
-        //         std::bind(&logistic_opt<float>::d_opt, lg, _1, _2),
-        //         theta, lg.fea_dim * lg.n_classes);
-        //     clock_t end = clock();
-        //     logging::info("superstep: %d, loss: %f, cost: %f sec",
-        //         ++superstep, lg.loss(theta),
-        //         (double)(end - start) / CLOCKS_PER_SEC);
-        // }
 
         // logging::info("saving model to file ...");
         // int fd = open(model_file, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);

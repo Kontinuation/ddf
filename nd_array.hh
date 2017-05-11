@@ -53,6 +53,7 @@ struct nd_array_base {
             _shared_data.reset(new numeric_type[size],
                 std::default_delete<numeric_type[]>());
             _raw_data = _shared_data.get();
+            std::fill_n(_raw_data, size, 0);
         } else {
             _raw_data = data;
             if (owned) {
@@ -378,7 +379,6 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         nd_array_base<_numeric_type, 2> &self = *this;
         int m = self.shape(0), n = self.shape(1);
         assert(("vector can be multiplied by matrix", v.size() == n));
-        printf("matrix vector mult (%d,%d) * (%d,1)\n", m,n, n);
         res.resize(m);
         for (int i = 0; i < m; i++) {
             res[i] = v.dot(nd_array<_numeric_type, 1>(n, &self(i)));
@@ -391,8 +391,8 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         int m = self.shape(0), n = self.shape(1);
         int bm = b.shape(0), bn = b.shape(1);
         assert(("matrices can be multiplied", n == bm));
-        printf("matrix matrix mult (%d,%d) * (%d,%d)\n", m,n, bm,bn);
         res.resize(m, bn);
+        res.fill(0);
         for (int j = 0; j < bn; j++) {
             for (int i = 0; i < m; i++) {
                 for (int k = 0; k < n; k++) {

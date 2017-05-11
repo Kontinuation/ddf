@@ -130,7 +130,7 @@ struct variable: math_expr<numeric_type> {
     }
 
     math_expr<numeric_type> *clone(void) const {
-        return new variable(_var, _val.clone());
+        return new variable(_var, _val);
     }
 
     std::string to_string() const {
