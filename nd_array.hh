@@ -39,7 +39,7 @@ struct nd_array_base {
     nd_array_base(nd_array_base &&) = default; // move ctor
     virtual ~nd_array_base(void) = default;
 
-    // constructing nd_array_base object from scratch (all zero) or from specified
+    // constructing nd_array_base object from scratch or from specified
     // data buffer (owning/not owning)
     void construct(const int *shape, numeric_type *data = nullptr,
                    bool owned = false) {
@@ -53,7 +53,6 @@ struct nd_array_base {
             _shared_data.reset(new numeric_type[size],
                 std::default_delete<numeric_type[]>());
             _raw_data = _shared_data.get();
-            std::fill_n(_raw_data, size, 0);
         } else {
             _raw_data = data;
             if (owned) {
@@ -73,14 +72,18 @@ struct nd_array_base {
     }
 
     nd_array_base &operator = (const nd_array_base &v) {
-        printf("copy assignment\n"); 
+#ifdef NOTICE_CTOR_CALL
+        printf("copy assignment\n");
+#endif
         nd_array_base tmp(v);
         this->swap(tmp);
         return *this;
     }
 
     nd_array_base &operator = (nd_array_base &&v) {
-        printf("move assignment\n"); 
+#ifdef NOTICE_CTOR_CALL
+        printf("move assignment\n");
+#endif
         this->swap(v);
         return *this;
     }
@@ -88,6 +91,7 @@ struct nd_array_base {
     nd_array_base &copy_from(const nd_array_base &v) {
         if (_raw_data != v._raw_data) {
             if (_buf_size == v._buf_size) {
+                printf("copy_from\n");
                 std::copy_n(_raw_data, _buf_size, v._raw_data);
                 _buf_size = v._buf_size;
                 std::copy_n(_shape, n_dim, v._shape);
@@ -374,6 +378,7 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         nd_array_base<_numeric_type, 2> &self = *this;
         int m = self.shape(0), n = self.shape(1);
         assert(("vector can be multiplied by matrix", v.size() == n));
+        printf("matrix vector mult (%d,%d) * (%d,1)\n", m,n, n);
         res.resize(m);
         for (int i = 0; i < m; i++) {
             res[i] = v.dot(nd_array<_numeric_type, 1>(n, &self(i)));
@@ -386,8 +391,8 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         int m = self.shape(0), n = self.shape(1);
         int bm = b.shape(0), bn = b.shape(1);
         assert(("matrices can be multiplied", n == bm));
+        printf("matrix matrix mult (%d,%d) * (%d,%d)\n", m,n, bm,bn);
         res.resize(m, bn);
-
         for (int j = 0; j < bn; j++) {
             for (int i = 0; i < m; i++) {
                 for (int k = 0; k < n; k++) {

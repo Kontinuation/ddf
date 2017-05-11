@@ -89,7 +89,7 @@ struct matrix_mult: math_op<numeric_type> {
 template <typename numeric_type>
 struct softmax_cross_entropy_with_logits: math_op<numeric_type> {
     softmax_cross_entropy_with_logits(const vector<numeric_type> &l)
-        : math_op<numeric_type>("DS"), _l(l) {
+        : math_op<numeric_type>("DS"), _l(l), _exp_w(0) {
     }
 
     void f_x(const vector<numeric_type> &w, vector<numeric_type> &y) {
@@ -98,33 +98,44 @@ struct softmax_cross_entropy_with_logits: math_op<numeric_type> {
         assert(("prediction size should match with label", n == _l.size()));
 
         // TODO: move calculation of multiplier as a common procedure
-        for (int k = 0; k < n; k++) multiplier += exp(w[k]);
+        _exp_w.resize(n);
+        for (int k = 0; k < n; k++) {
+            numeric_type exp_wk = exp(w[k]);
+            _exp_w[k] = exp_wk;
+            multiplier += exp_wk;
+        }
         multiplier = 1 / multiplier;
 
         numeric_type sum_ce = 0;
         for (int k = 0; k < n; k++) {
-            sum_ce += _l[k] * log(w[k] * multiplier);
+            sum_ce -= _l[k] * log(_exp_w[k] * multiplier);
         }
 
         y.resize(1);
         y[0] = sum_ce;
     }
 
-    // void Df_x(const vector<numeric_type> &w, matrix<numeric_type> &y) {
-    //     numeric_type multiplier = 0;
-    //     int n = w.size();
-    //     y.resize(1, n);
+    void Df_x(const vector<numeric_type> &w, matrix<numeric_type> &y) {
+        numeric_type multiplier = 0;
+        int n = w.size();
+        y.resize(1, n);
 
-    //     // TODO: move calculation of multiplier as a common procedure
-    //     for (int k = 0; k < n; k++) multiplier += exp(w[k]);
-    //     multiplier = 1 / multiplier;
+        // TODO: move calculation of multiplier as a common procedure
+        _exp_w.resize(n);
+        for (int k = 0; k < n; k++) {
+            numeric_type exp_wk = exp(w[k]);
+            _exp_w[k] = exp_wk;
+            multiplier += exp_wk;
+        }
+        multiplier = 1 / multiplier;
 
-    //     for (int i = 0; i < n; i++) {
-    //         y(0, i) = _l[i] - w[i] * multiplier;
-    //     }
-    // }
+        for (int i = 0; i < n; i++) {
+            y(0, i) = (_exp_w[i] * multiplier) - _l[i];
+        }
+    }
 
     vector<numeric_type> _l;
+    vector<numeric_type> _exp_w;
 };
 
 } // end namespace ddf

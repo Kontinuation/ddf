@@ -12,6 +12,17 @@ namespace ddf {
 // such functions, so that we can perform automatic differentiation in order to
 // feed it to an iterative optimization algorithm (such as SGD)
 
+enum class expr_type {
+    CONSTANT,
+    VARIABLE,
+    IDENTITY,
+    FUNCTION_CALL,
+    DFUNCTION_CALL,
+    ADDITION,
+    MULTIPLICATION,
+};
+
+
 template <typename _numeric_type>
 struct math_expr {
     virtual math_expr *derivative(const char *var) = 0;
@@ -21,20 +32,23 @@ struct math_expr {
     virtual void grad(matrix<_numeric_type> &m) {
         assert(("cannot calculate grad on this expr", false));
     }
+    expr_type type;
 };
 
 // forward declarations for recursive datatypes
-template <typename numeric_type> struct addition;
-template <typename numeric_type> struct multiplication;
 template <typename numeric_type> struct constant;
 template <typename numeric_type> struct variable;
+template <typename numeric_type> struct identity;
 template <typename numeric_type> struct function_call;
 template <typename numeric_type> struct dfunction_call;
+template <typename numeric_type> struct addition;
+template <typename numeric_type> struct multiplication;
 
 // dc/dx = 0
 template <typename numeric_type>
 struct constant: math_expr<numeric_type> {
     constant(const vector<numeric_type> &v): _v(v) {
+        this->type = expr_type::CONSTANT;
     }
 
     math_expr<numeric_type> *derivative(const char *) {
@@ -59,6 +73,7 @@ struct constant: math_expr<numeric_type> {
 template <typename numeric_type>
 struct identity: math_expr<numeric_type> {
     identity(int size): _size(size) {
+        this->type = expr_type::IDENTITY;
     }
 
     math_expr<numeric_type> *derivative(const char *) {
@@ -93,6 +108,7 @@ template <typename numeric_type>
 struct variable: math_expr<numeric_type> {
     variable(const char *var, const vector<numeric_type> &val)
         : _val(val) {
+        this->type = expr_type::VARIABLE;
         strncpy(_var, var, sizeof _var);
         _var[(sizeof _var) - 1] = '\0';
     }
@@ -130,6 +146,7 @@ template <typename numeric_type>
 struct function_call: math_expr<numeric_type> {
     function_call(math_op<numeric_type> *op, math_expr<numeric_type> *arg)
         : _op(op), _arg(arg) {
+        this->type = expr_type::FUNCTION_CALL;
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -166,6 +183,7 @@ struct dfunction_call: math_expr<numeric_type> {
         math_op<numeric_type> *op, math_expr<numeric_type> *arg,
         math_expr<numeric_type> *d_arg)
         : _op(op), _arg(arg), _d_arg(d_arg) {
+        this->type = expr_type::DFUNCTION_CALL;
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -178,14 +196,18 @@ struct dfunction_call: math_expr<numeric_type> {
     }
 
     void grad(matrix<numeric_type> &m) {
-        matrix<numeric_type> D_f(0, 0);
-        matrix<numeric_type> D_g(0, 0);
         vector<numeric_type> x(0);
-
-        _arg->eval(x);
-        _op->Df_x(x, D_f);
-        _d_arg->grad(D_g);
-        m = D_f * D_g;
+        if (_d_arg->type != expr_type::IDENTITY) {
+            matrix<numeric_type> D_f(0, 0);
+            matrix<numeric_type> D_g(0, 0);
+            _arg->eval(x);
+            _op->Df_x(x, D_f);
+            _d_arg->grad(D_g);
+            D_f.mult(D_g, m);       // m = D_f * D_g;
+        } else {
+            _arg->eval(x);
+            _op->Df_x(x, m);
+        }
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -207,6 +229,7 @@ template <typename numeric_type>
 struct addition: math_expr<numeric_type> {
     addition(math_expr<numeric_type> *a, math_expr<numeric_type> *b)
         : _a(a), _b(b) {
+        this->type = expr_type::ADDITION;
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -255,6 +278,7 @@ template <typename numeric_type>
 struct multiplication: math_expr<numeric_type> {
     multiplication(math_expr<numeric_type> *a, math_expr<numeric_type> *b)
         : _a(a), _b(b) {
+        this->type = expr_type::MULTIPLICATION;
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
