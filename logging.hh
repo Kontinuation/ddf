@@ -1,7 +1,6 @@
 #ifndef _LOGGING_H_
 #define _LOGGING_H_
 
-
 // 
 // Collection of static methods for dumping logs in various levels
 // TODO: add set_log_level function to inhibit low priority logs
@@ -17,6 +16,5 @@ public:
 	static void critical(const char *format, ...);
 	static void fatal(const char *format, ...);
 };
-
 
 #endif /* _LOGGING_H_ */

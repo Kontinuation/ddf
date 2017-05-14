@@ -229,7 +229,8 @@ struct myop_g: ddf::math_op<numeric_type> {
     }
 };
 
-void test_fg() {
+void test_fg()
+{
     myop_f<double> f;
     myop_g<double> g;
     double x0[2] = { 0.3, 0.6 };
@@ -290,6 +291,32 @@ void test_fg() {
     var_x->_val[1] = tmp;    
 }
 
+void test_array_opt(void)
+{
+    double w0[12] = {
+        1, 2, 3, 4,
+        5, 6, 7, 8,
+        9, 10, 11, 12,
+    };
+    double x0[4] = {1.0, 2.0, 3.0, 4.0}; // sample
+    ddf::matrix_mult<double> matmul(ddf::vector<double>(4, x0));
+
+    ddf::matrix<double> D(0,0);
+    matmul.Df_x(ddf::vector<double>(12, w0), D);
+
+    printf("D: %s\n", D.to_string().c_str());
+
+    double a0[6] = {
+        2, 3, 5,
+        1, 4, 6,
+    };    
+    ddf::matrix<double> A(2, 3, a0);
+    ddf::matrix<double> AD(0,0);
+    printf("A * D: %s\n", (A * D).to_string().c_str());
+    ddf::mult_strided_matrix(A, D, AD);
+    printf("AD: %s\n", AD.to_string().c_str());
+}
+
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
@@ -297,6 +324,7 @@ int main(int argc, char *argv[])
     test_softmax();
     test_matmul();
     test_expr();
-    // test_fg();
+    test_fg();
+    test_array_opt();
     return 0;
 }

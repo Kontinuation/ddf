@@ -2,6 +2,7 @@
 #define EXPR_H
 
 #include "nd_array.hh"
+#include "array_opt.hh"
 #include <algorithm>
 #include <cstring>
 
@@ -159,9 +160,8 @@ struct function_call: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        vector<numeric_type> x(0);
-        _arg->eval(x);
-        _op->f_x(x, y);
+        _arg->eval(_x);
+        _op->f_x(_x, y);
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -174,6 +174,7 @@ struct function_call: math_expr<numeric_type> {
 
     math_op<numeric_type> *_op;
     math_expr<numeric_type> *_arg;
+    vector<numeric_type> _x;
 };
 
 // ddf(arg)/dx is a invalid term
@@ -196,17 +197,30 @@ struct dfunction_call: math_expr<numeric_type> {
     }
 
     void grad(matrix<numeric_type> &m) {
-        vector<numeric_type> x(0);
         if (_d_arg->type != expr_type::IDENTITY) {
-            matrix<numeric_type> D_f(0, 0);
-            matrix<numeric_type> D_g(0, 0);
-            _arg->eval(x);
-            _op->Df_x(x, D_f);
-            _d_arg->grad(D_g);
-            D_f.mult(D_g, m);       // m = D_f * D_g;
+            _arg->eval(_x);
+            _op->Df_x(_x, _D_f);
+
+            // We need to apply an optimization for matrix mult here: the
+            // Jacobian of `D (W * x)` has significiant pattern, which would
+            // lead to a good optimization
+            if (_d_arg->type == expr_type::DFUNCTION_CALL) {
+                dfunction_call<numeric_type> *d_arg =
+                    static_cast<dfunction_call<numeric_type> *>(_d_arg);
+                if (d_arg->_op->name() == "matmul" &&
+                    d_arg->_d_arg->type == expr_type::IDENTITY) {
+                    auto op = static_cast<matrix_mult<numeric_type> *>(d_arg->_op);
+                    ddf::mult_strided_matrix(_D_f, op->_v, m);
+                    return;
+                }
+            }
+
+            // fallback case
+            _d_arg->grad(_D_g);
+            _D_f.mult(_D_g, m); // m = _D_f * _D_g;
         } else {
-            _arg->eval(x);
-            _op->Df_x(x, m);
+            _arg->eval(_x);
+            _op->Df_x(_x, m);
         }
     }
 
@@ -222,6 +236,9 @@ struct dfunction_call: math_expr<numeric_type> {
     math_op<numeric_type> *_op;
     math_expr<numeric_type> *_arg;
     math_expr<numeric_type> *_d_arg;
+    vector<numeric_type> _x;
+    matrix<numeric_type> _D_f;
+    matrix<numeric_type> _D_g;
 };
 
 // d(a + b)/dx = da/dx + db/dx
@@ -248,17 +265,15 @@ struct addition: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        vector<numeric_type> x(0);
-        _a->eval(x);
+        _a->eval(_x);
         _b->eval(y);
-        y += x;
+        y += _x;
     }
 
     void grad(matrix<numeric_type> &m) {
-        matrix<numeric_type> D_b(0, 0);
         _a->grad(m);
-        _b->grad(D_b);
-        m += D_b;
+        _b->grad(_D_b);
+        m += _D_b;
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -271,6 +286,8 @@ struct addition: math_expr<numeric_type> {
 
     math_expr<numeric_type> *_a;
     math_expr<numeric_type> *_b;
+    vector<numeric_type> _x;
+    matrix<numeric_type> _D_b;
 };
 
 // d (a * b)/dx = da/dx*b + db/dx*a

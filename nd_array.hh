@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
+#include "logging.hh"
 
 namespace ddf {
 
@@ -50,10 +51,15 @@ struct nd_array_base {
             size *= shape[i];
         }
         if (!data) {
-            _shared_data.reset(new numeric_type[size],
-                std::default_delete<numeric_type[]>());
-            _raw_data = _shared_data.get();
-            std::fill_n(_raw_data, size, 0);
+            if (size > 0) {
+#ifdef NOTICE_ALLOC_CALL
+                logging::trace("allocating space for new array, size: %d", size); 
+#endif
+                _raw_data = new numeric_type[size];
+            } else {
+                _raw_data = nullptr;
+            }
+            _shared_data.reset(_raw_data, std::default_delete<numeric_type[]>());
         } else {
             _raw_data = data;
             if (owned) {
@@ -74,7 +80,7 @@ struct nd_array_base {
 
     nd_array_base &operator = (const nd_array_base &v) {
 #ifdef NOTICE_CTOR_CALL
-        printf("copy assignment\n");
+        logging::trace("copy assignment");
 #endif
         nd_array_base tmp(v);
         this->swap(tmp);
@@ -83,7 +89,7 @@ struct nd_array_base {
 
     nd_array_base &operator = (nd_array_base &&v) {
 #ifdef NOTICE_CTOR_CALL
-        printf("move assignment\n");
+        logging::trace("move assignment");
 #endif
         this->swap(v);
         return *this;
@@ -92,7 +98,6 @@ struct nd_array_base {
     nd_array_base &copy_from(const nd_array_base &v) {
         if (_raw_data != v._raw_data) {
             if (_buf_size == v._buf_size) {
-                printf("copy_from\n");
                 std::copy_n(_raw_data, _buf_size, v._raw_data);
                 _buf_size = v._buf_size;
                 std::copy_n(_shape, n_dim, v._shape);
@@ -283,7 +288,7 @@ struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
                       bool owned = false)
         : nd_array_base<_numeric_type, 1>(shape, data, owned) {
     }
-    explicit nd_array(int len, _numeric_type *data = nullptr,
+    explicit nd_array(int len = 0, _numeric_type *data = nullptr,
                       bool owned = false)
         : nd_array_base<_numeric_type, 1>({len}, data, owned) {
     }
@@ -312,7 +317,8 @@ struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
     _numeric_type dot(const nd_array &v) const {
         this->assert_same_size(v);
         _numeric_type res = 0;
-        for (int k = 0; k < this->_shape[0]; ++k) {
+        int N = this->_shape[0];
+        for (int k = 0; k < N; ++k) {
             res += this->_raw_data[k] * v._raw_data[k];
         }
         return res;
@@ -330,7 +336,7 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
                       bool owned = false)
         : nd_array_base<_numeric_type, 2>(shape, data, owned) {
     }
-    explicit nd_array(int m, int n, _numeric_type *data = nullptr,
+    explicit nd_array(int m = 0, int n = 0, _numeric_type *data = nullptr,
                       bool owned = false)
         : nd_array_base<_numeric_type, 2>({m, n}, data, owned) {
     }
@@ -389,8 +395,8 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         const nd_array<_numeric_type, 2> &b, nd_array<_numeric_type, 2> &res) {
         nd_array_base<_numeric_type, 2> &self = *this;
         int m = self.shape(0), n = self.shape(1);
-        int bm = b.shape(0), bn = b.shape(1);
-        assert(("matrices can be multiplied", n == bm));
+        int bn = b.shape(1);
+        assert(("matrices can be multiplied", n == b.shape(0)));
         res.resize(m, bn);
         res.fill(0);
         for (int j = 0; j < bn; j++) {

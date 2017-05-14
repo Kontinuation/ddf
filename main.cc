@@ -1,3 +1,5 @@
+#define NOTICE_ALLOC_CALL
+
 #include <signal.h>
 #include <cstring>
 #include "logging.hh"
@@ -88,7 +90,9 @@ int main(int argc, char *argv[]) {
         }
         printf("initial loss: %f\n", sum_loss);
 
-        for (int iter = 0; iter < 100; iter++) {
+        for (int iter = 0; iter < 20; iter++) {
+            clock_t start = clock();
+
             sum_dw.fill(0);
             sum_db.fill(0);
             for (int k = 0; k < n_samples; k++) {
@@ -121,7 +125,11 @@ int main(int argc, char *argv[]) {
                 loss->eval(c);
                 sum_loss += c[0];
             }
-            printf("loss [%d]: %f\n", iter, sum_loss);
+
+            clock_t end = clock();
+            logging::info("iter: %d, loss: %f, cost: %f sec",
+                iter, sum_loss,
+                (double)(end - start) / CLOCKS_PER_SEC);
         }
 
         // logging::info("saving model to file ...");

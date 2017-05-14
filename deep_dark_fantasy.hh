@@ -4,6 +4,7 @@
 // Foundamentals of Deep Learning
 
 #include "nd_array.hh"
+#include "array_opt.hh"
 #include "op.hh"
 #include "expr.hh"
 

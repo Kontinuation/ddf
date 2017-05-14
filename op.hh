@@ -45,6 +45,11 @@ struct math_op {
             y.set_column(dim, y1);
         }
     }
+
+    std::string name() const {
+        return _name;
+    }
+
     char _name[64];
 };
 
