@@ -103,7 +103,8 @@ int main(int argc, char *argv[]) {
                 // one-hot encoding for label
                 std::fill_n(l, n_classes, 0);
                 l[label[k]] = 1;
-                
+
+                // gradient descent
                 dw.fill(0);
                 db.fill(0);
                 dloss_dw->grad(dw);

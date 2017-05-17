@@ -317,6 +317,23 @@ void test_array_opt(void)
     printf("AD: %s\n", AD.to_string().c_str());
 }
 
+void test_relu(void)
+{
+    double x0[5] = {1.0, -2.0, 3.0, -4.0, -5.0}; // sample
+    ddf::vector<double> x(5, x0);
+    ddf::relu<double> rl;
+    ddf::matrix<double> D_rl;
+    ddf::vector<double> relu_x;
+    rl.f_x(x, relu_x);
+    rl.Df_x(x, D_rl);
+    printf("relu_x: %s\nD_rl: %s\n", 
+        relu_x.to_string().c_str(), D_rl.to_string().c_str());
+
+    rl.slow_Df_x(x, D_rl);
+    printf("slow_D_rl: %s\n",
+        D_rl.to_string().c_str());
+}
+
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
@@ -326,5 +343,6 @@ int main(int argc, char *argv[])
     test_expr();
     test_fg();
     test_array_opt();
+    test_relu();
     return 0;
 }

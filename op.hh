@@ -25,6 +25,10 @@ struct math_op {
     // This is a fallback implementation of partial derivatives
     virtual void Df_x(
         const vector<numeric_type> &x, matrix<numeric_type> &y) {
+        slow_Df_x(x, y);
+    }
+
+    void slow_Df_x(const vector<numeric_type> &x, matrix<numeric_type> &y) {
         numeric_type delta = 1e-6;
 
         // get dimension of f(x)
@@ -141,6 +145,30 @@ struct softmax_cross_entropy_with_logits: math_op<numeric_type> {
 
     vector<numeric_type> _l;
     vector<numeric_type> _exp_w;
+};
+
+// Rectifier
+template <typename numeric_type>
+struct relu: math_op<numeric_type> {
+    relu(): math_op<numeric_type>("relu") {
+    }
+
+    void f_x(const vector<numeric_type> &x, vector<numeric_type> &y) {
+        int n = x.size();
+        y.resize(n);
+        for (int k = 0; k < n; k++) {
+            y[k] = x[k] > 0? x[k]: 0;
+        }
+    }
+
+    void Df_x(const vector<numeric_type> &x, matrix<numeric_type> &y) {
+        int n = x.size();
+        y.resize(n, n);
+        y.fill(0);
+        for (int k = 0; k < n; k++) {
+            y(k, k) = x[k] > 0? 1: 0;
+        }
+    }
 };
 
 } // end namespace ddf
