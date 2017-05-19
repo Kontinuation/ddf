@@ -292,40 +292,68 @@ void test_fg()
 
 void test_array_opt(void)
 {
-    double w0[12] = {
-        1, 2, 3, 4,
-        5, 6, 7, 8,
-        9, 10, 11, 12,
-    };
-    double x0[4] = {1.0, 2.0, 3.0, 4.0}; // sample
-    ddf::matrix_mult<double> matmul(ddf::vector<double>(4, x0));
+    // matrix mult
+    {
+        double w0[12] = {
+            1, 2, 3, 4,
+            5, 6, 7, 8,
+            9, 10, 11, 12,
+        };
+        double x0[4] = {1.0, 2.0, 3.0, 4.0}; // sample
+        ddf::matrix_mult<double> matmul(ddf::vector<double>(4, x0));
 
-    ddf::matrix<double> D(0,0);
-    matmul.Df_x(ddf::vector<double>(12, w0), D);
+        ddf::matrix<double> D;
+        matmul.Df_x(ddf::vector<double>(12, w0), D);
 
-    printf("D: %s\n", D.to_string().c_str());
+        printf("D: %s\n", D.to_string().c_str());
 
-    double a0[6] = {
-        2, 3, 5,
-        1, 4, 6,
-    };    
-    ddf::matrix<double> A(2, 3, a0);
-    ddf::matrix<double> AD(0,0);
-    printf("A * D: %s\n", (A * D).to_string().c_str());
-    ddf::mult_strided_matrix(A, D, AD);
-    printf("AD: %s\n", AD.to_string().c_str());
+        double a0[6] = {
+            2, 3, 5,
+            1, 4, 6,
+        };    
+        ddf::matrix<double> A(2, 3, a0);
+        ddf::matrix<double> AD(0,0);
+        printf("A * D: %s\n", (A * D).to_string().c_str());
+        ddf::mult_strided_matrix(A, D, AD);
+        printf("AD: %s\n", AD.to_string().c_str());
 
-    double b0[24] = {
-        1,2,3,4,5,6,7,8,9,10,11,12,
-        2,3,4,5,6,7,8,9,10,11,12,13,
-    };
-    ddf::matrix<double> B(12, 2, b0);
-    ddf::matrix<double> DB(0,0);
-    printf("D * B: %s\n", (D * B).to_string().c_str());
+        double b0[24] = {
+            1,2,3,4,5,6,7,8,9,10,11,12,
+            2,3,4,5,6,7,8,9,10,11,12,13,
+        };
+        ddf::matrix<double> B(12, 2, b0);
+        ddf::matrix<double> DB(0,0);
+        printf("D * B: %s\n", (D * B).to_string().c_str());
 
-    matmul.mult_grad(B, ddf::vector<double>(4, x0), DB);
-    printf("DB: %s\n", DB.to_string().c_str());
-    // printf("AD: %s\n", AD.to_string().c_str());
+        matmul.mult_grad(B, ddf::vector<double>(4, x0), DB);
+        printf("DB: %s\n", DB.to_string().c_str());
+    }
+
+    // relu
+    {
+        ddf::relu<double> relu;
+        double x0[4] = {1.0, 2.0, -3.0, 4.0}; // sample
+        double b0[12] = {
+            1, 2, 3,
+            4, 5, 6,
+            7, 8, 9,
+            10, 11, 12,
+        };
+
+        ddf::vector<double> x(4, x0);
+        ddf::matrix<double> B(4,3, b0);
+        ddf::matrix<double> D, DB, AD;
+        relu.Df_x(x, D);
+        printf("D * B: %s\n", (D * B).to_string().c_str());
+        relu.mult_grad(B, x, DB);
+        printf("DB: %s\n", DB.to_string().c_str());
+
+        ddf::matrix<double> A(3,4, b0);
+        printf("A * D: %s\n", (A * D).to_string().c_str());
+        relu.mult_by_grad(A, x, AD);
+        printf("AD: %s\n", AD.to_string().c_str());
+    }
+        
 }
 
 void test_relu(void)

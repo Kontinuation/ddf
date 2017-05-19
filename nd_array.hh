@@ -110,7 +110,7 @@ struct nd_array_base {
     }
 
     nd_array_base &copy_from(const numeric_type *buf) {
-        std::copy_n(_raw_data, _buf_size, buf);
+        std::copy_n(buf, _buf_size, _raw_data);
         return *this;
     }
 

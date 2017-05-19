@@ -216,14 +216,15 @@ struct relu: math_op<numeric_type> {
     void mult_grad(
         const matrix<numeric_type> &B, const vector<numeric_type> &x, 
         matrix<numeric_type> &y) {
-
-        int n = x.size();
-        y.resize(n, B.shape(1));
-        for (int k = 0; k < n; k++) {
+        int m = x.size();
+        int n = B.shape(1);
+        assert(("matrix size should be multiplicable", m == B.shape(0)));
+        y.resize(m, n);
+        for (int k = 0; k < m; k++) {
             if (x[k] > 0) {
-                std::copy_n(y(k,0), B(k,0), n);
+                std::copy_n(&B(k,0), n, &y(k,0));
             } else {
-                std::fill_n(y(k,0), n, 0);
+                std::fill_n(&y(k,0), n, 0);
             }
         }
     }
@@ -231,7 +232,19 @@ struct relu: math_op<numeric_type> {
     void mult_by_grad(
         const matrix<numeric_type> &A, const vector<numeric_type> &x, 
         matrix<numeric_type> &y) {
+        int m = A.shape(0);
+        int n = x.size();
+        assert(("matrix size should be multiplicable", A.shape(1) == n));
+        y.resize(m, n);
+        for (int k = 0; k < n; k++) {
+            if (x[k] > 0) {
+                for (int l = 0; l < m; l++) y(l,k) = A(l,k);
+            } else {
+                for (int l = 0; l < m; l++) y(l,k) = 0;
+            }
+        }
     }
+
 };
 
 } // end namespace ddf
