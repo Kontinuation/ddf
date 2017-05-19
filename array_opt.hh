@@ -58,6 +58,28 @@ void mult_strided_matrix(
     }    
 }
 
+template <typename numeric_type>
+void mult_by_strided_matrix(
+    const matrix<numeric_type> &B, const vector<numeric_type> &v,
+    matrix<numeric_type> &C) {
+    static thread_local vector<numeric_type> bv;
+    int v_dim = v.size();
+    int n_row = B.shape(0) / v_dim;
+    assert(("matrix and stride vector should match", B.shape(0) % v_dim == 0));
+    int n_col = B.shape(1);
+    C.resize(n_row, n_col);
+    bv.resize(v_dim);
+    for (int i = 0; i < n_row; i++) {
+        for (int j = 0; j < n_col; j++) {
+            int b_row = v_dim * i;
+            for (int k = 0; k < v_dim; k++, b_row++) {
+                bv[k] = B(b_row, j);
+            }
+            C(i, j) = v.dot(bv);
+        }
+    }
+}
+
 } // end namespace ddf
 
 #endif /* ARRAY_OPT_H */

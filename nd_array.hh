@@ -98,7 +98,7 @@ struct nd_array_base {
     nd_array_base &copy_from(const nd_array_base &v) {
         if (_raw_data != v._raw_data) {
             if (_buf_size == v._buf_size) {
-                std::copy_n(_raw_data, _buf_size, v._raw_data);
+                copy_from(v._raw_data);
                 _buf_size = v._buf_size;
                 std::copy_n(_shape, n_dim, v._shape);
                 std::copy_n(_dim_size, n_dim, v._dim_size);
@@ -106,6 +106,11 @@ struct nd_array_base {
                 this->operator = (v);
             }
         }
+        return *this;
+    }
+
+    nd_array_base &copy_from(const numeric_type *buf) {
+        std::copy_n(_raw_data, _buf_size, buf);
         return *this;
     }
 
@@ -380,9 +385,9 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
     }
 
     // write result to specified vector to avoid memory allocation
-    void mult(
-        const nd_array<_numeric_type, 1> &v, nd_array<_numeric_type, 1> &res) {
-        nd_array_base<_numeric_type, 2> &self = *this;
+    void mult(const nd_array<_numeric_type, 1> &v,
+        nd_array<_numeric_type, 1> &res) const {
+        const nd_array_base<_numeric_type, 2> &self = *this;
         int m = self.shape(0), n = self.shape(1);
         assert(("vector can be multiplied by matrix", v.size() == n));
         res.resize(m);
@@ -391,9 +396,9 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         }
     }
 
-    void mult(
-        const nd_array<_numeric_type, 2> &b, nd_array<_numeric_type, 2> &res) {
-        nd_array_base<_numeric_type, 2> &self = *this;
+    void mult(const nd_array<_numeric_type, 2> &b,
+        nd_array<_numeric_type, 2> &res) const {
+        const nd_array_base<_numeric_type, 2> &self = *this;
         int m = self.shape(0), n = self.shape(1);
         int bn = b.shape(1);
         assert(("matrices can be multiplied", n == b.shape(0)));

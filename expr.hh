@@ -23,7 +23,6 @@ enum class expr_type {
     MULTIPLICATION,
 };
 
-
 template <typename _numeric_type>
 struct math_expr {
     virtual math_expr *derivative(const char *var) = 0;
@@ -199,25 +198,32 @@ struct dfunction_call: math_expr<numeric_type> {
     void grad(matrix<numeric_type> &m) {
         if (_d_arg->type != expr_type::IDENTITY) {
             _arg->eval(_x);
-            _op->Df_x(_x, _D_f);
 
-            // We need to apply an optimization for matrix mult here: the
-            // Jacobian of `D (W * x)` has significiant pattern, which would
-            // lead to a good optimization
+            // look for optimization opportunity
+            int mult_opt = _op->mult_opt_level();
+            int mult_by_opt = 0;
+            auto d_arg = static_cast<dfunction_call<numeric_type> *>(_d_arg);
             if (_d_arg->type == expr_type::DFUNCTION_CALL) {
-                dfunction_call<numeric_type> *d_arg =
-                    static_cast<dfunction_call<numeric_type> *>(_d_arg);
-                if (d_arg->_op->name() == "matmul" &&
-                    d_arg->_d_arg->type == expr_type::IDENTITY) {
-                    auto op = static_cast<matrix_mult<numeric_type> *>(d_arg->_op);
-                    ddf::mult_strided_matrix(_D_f, op->_v, m);
-                    return;
+                if (d_arg->_d_arg->type == expr_type::IDENTITY) {
+                    mult_by_opt = d_arg->_op->mult_by_opt_level();
                 }
             }
 
-            // fallback case
-            _d_arg->grad(_D_g);
-            _D_f.mult(_D_g, m); // m = _D_f * _D_g;
+            if (mult_opt > 0 || mult_by_opt > 0) {
+                // optimized case
+                if (mult_opt > mult_by_opt) {
+                    _d_arg->grad(_D_g);
+                    _op->mult_grad(_D_g, _x, m);
+                } else {
+                    _op->Df_x(_x, _D_f);
+                    d_arg->_op->mult_by_grad(_D_f, _x, m);
+                }
+            } else {
+                // fallback case
+                _op->Df_x(_x, _D_f);
+                _d_arg->grad(_D_g);
+                _D_f.mult(_D_g, m); // m = _D_f * _D_g;
+            }
         } else {
             _arg->eval(_x);
             _op->Df_x(_x, m);

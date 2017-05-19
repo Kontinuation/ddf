@@ -132,20 +132,6 @@ int main(int argc, char *argv[]) {
                 iter, sum_loss,
                 (double)(end - start) / CLOCKS_PER_SEC);
         }
-
-        // logging::info("saving model to file ...");
-        // int fd = open(model_file, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-        // if (fd != 0) {
-        //     int model_bytes = len_theta * sizeof(float);
-        //     if (write(fd, theta, model_bytes) != model_bytes) {
-        //         logging::error("failed saving model to file");
-        //     }
-        //     close(fd);
-        // } else {
-        //     logging::error("failed to open model file");
-        // }
-
-        // delete [] theta;
     }
     else if (!strcmp(cmd, "predict")) {
         dataset d_test(dataset_file);

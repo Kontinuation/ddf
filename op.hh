@@ -13,7 +13,9 @@ namespace ddf {
 template <typename _numeric_type>
 struct math_op {
     typedef _numeric_type numeric_type;
-    math_op(const char *name = "op") {
+    math_op(const char *name = "op",
+        int mult_opt = 0, int mult_by_opt = 0)
+        : _mult_opt(mult_opt), _mult_by_opt(mult_by_opt) {
         strncpy(_name, name, sizeof _name);
         _name[(sizeof _name) - 1] = '\0';
     }
@@ -50,11 +52,33 @@ struct math_op {
         }
     }
 
-    std::string name() const {
-        return _name;
+    // multiply gradient matrix at x by B
+    virtual void mult_grad(
+        const matrix<numeric_type> &B, const vector<numeric_type> &x,
+        matrix<numeric_type> &y) {
+        matrix<numeric_type> A;
+        Df_x(x, A);
+        A.mult(B, y);
     }
 
+    // A multiplied by gradient matrix at x
+    virtual void mult_by_grad(
+        const matrix<numeric_type> &A, const vector<numeric_type> &x, 
+        matrix<numeric_type> &y) {
+        matrix<numeric_type> B;
+        Df_x(x, B);
+        A.mult(B, y);
+    }
+
+    std::string name() const { return _name; }
+    int mult_opt_level(void) const { return _mult_opt; }
+    int mult_by_opt_level(void) const { return _mult_by_opt; }
+
     char _name[64];
+
+    // optimization level for jacobian matrix multiplications
+    int _mult_opt;
+    int _mult_by_opt;
 };
 
 // matrix variable multiplied by vector
@@ -64,7 +88,7 @@ struct math_op {
 template <typename numeric_type>
 struct matrix_mult: math_op<numeric_type> {
     matrix_mult(const vector<numeric_type> &v)
-        : math_op<numeric_type>("matmul"), _v(v) {
+        : math_op<numeric_type>("matmul", 1, 2), _v(v) {
     }
 
     // y = x * _v
@@ -89,6 +113,22 @@ struct matrix_mult: math_op<numeric_type> {
         assert(("matrix size should be multiplier of vector size",
                 m * n == x.size()));
         return matrix<numeric_type>(m, n, x.raw_data());
+    }
+
+    // We need to apply an optimization for matrix mult here: the Jacobian of
+    // `D (W * x)` has significiant pattern, which would lead to a good
+    // optimization
+
+    void mult_grad(
+        const matrix<numeric_type> &B, const vector<numeric_type> &x, 
+        matrix<numeric_type> &y) {
+        ddf::mult_by_strided_matrix(B, _v, y);
+    }
+
+    void mult_by_grad(
+        const matrix<numeric_type> &A, const vector<numeric_type> &x, 
+        matrix<numeric_type> &y) {
+        ddf::mult_strided_matrix(A, _v, y);
     }
 
     vector<numeric_type> _v;
@@ -168,6 +208,29 @@ struct relu: math_op<numeric_type> {
         for (int k = 0; k < n; k++) {
             y(k, k) = x[k] > 0? 1: 0;
         }
+    }
+
+    // the jacobian of `D relu` is a diagonal matrix, which would lead to a
+    // good optimization
+
+    void mult_grad(
+        const matrix<numeric_type> &B, const vector<numeric_type> &x, 
+        matrix<numeric_type> &y) {
+
+        int n = x.size();
+        y.resize(n, B.shape(1));
+        for (int k = 0; k < n; k++) {
+            if (x[k] > 0) {
+                std::copy_n(y(k,0), B(k,0), n);
+            } else {
+                std::fill_n(y(k,0), n, 0);
+            }
+        }
+    }
+
+    void mult_by_grad(
+        const matrix<numeric_type> &A, const vector<numeric_type> &x, 
+        matrix<numeric_type> &y) {
     }
 };
 

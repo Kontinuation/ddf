@@ -271,7 +271,6 @@ void test_fg()
     expected(2,1) = 2*x0[0]*x0[1] + x0[0]*x0[0];
     printf("expected: %s\n", expected.to_string().c_str());
 
-
     double delta = 1e-6;
     ddf::vector<double> fg_val1(0);
 
@@ -315,6 +314,18 @@ void test_array_opt(void)
     printf("A * D: %s\n", (A * D).to_string().c_str());
     ddf::mult_strided_matrix(A, D, AD);
     printf("AD: %s\n", AD.to_string().c_str());
+
+    double b0[24] = {
+        1,2,3,4,5,6,7,8,9,10,11,12,
+        2,3,4,5,6,7,8,9,10,11,12,13,
+    };
+    ddf::matrix<double> B(12, 2, b0);
+    ddf::matrix<double> DB(0,0);
+    printf("D * B: %s\n", (D * B).to_string().c_str());
+
+    matmul.mult_grad(B, ddf::vector<double>(4, x0), DB);
+    printf("DB: %s\n", DB.to_string().c_str());
+    // printf("AD: %s\n", AD.to_string().c_str());
 }
 
 void test_relu(void)
