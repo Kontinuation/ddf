@@ -11,70 +11,140 @@ namespace ddf {
 // provide some building blocks (ops) for constructing deep networds.
 
 template <typename _numeric_type>
-struct math_op {
+class math_op {
+public:
     typedef _numeric_type numeric_type;
-    math_op(const char *name = "op",
-        int mult_opt = 0, int mult_by_opt = 0)
-        : _mult_opt(mult_opt), _mult_by_opt(mult_by_opt) {
-        strncpy(_name, name, sizeof _name);
-        _name[(sizeof _name) - 1] = '\0';
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+    
+#define assert_param_dim(k_param)               \
+    assert(("parameter index out of bound", (k_param) >= this->_n_params))
+    
+    math_op(const std::string &name, int n_params, int mult_opt = 0, 
+        int mult_by_opt = 0)
+        : _name(name), _n_params(n_params), _mult_opt(mult_opt),
+          _mult_by_opt(mult_by_opt) {
     }
     virtual ~math_op(void) = default;
-    virtual void f_x(const vector<numeric_type> &x,
-                     vector<numeric_type> &y) = 0;
 
-    // Df_x is the Jacobian matrix of f_x
-    // This is a fallback implementation of partial derivatives
-    virtual void Df_x(
-        const vector<numeric_type> &x, matrix<numeric_type> &y) {
-        slow_Df_x(x, y);
+    // assign value for k-th parameter for this operator
+    virtual void prepare(int k_param, const vector_type &x) = 0;
+    virtual vector_type get_param(int k_param) = 0;
+    virtual void ready(void) {}
+    
+    // evaluate on prepared value  
+    virtual void f(vector_type &y) = 0;
+
+    // Df_x is the Jacobian matrix of f_x about k_param-th parameter
+    virtual void Df(int k_param, matrix_type &D) {
+        slow_Df(k_param, D);
     }
-
-    void slow_Df_x(const vector<numeric_type> &x, matrix<numeric_type> &y) {
-        numeric_type delta = 1e-6;
-
-        // get dimension of f(x)
-        ddf::vector<numeric_type> y0(0);
-        f_x(x, y0);
+    
+    // This is a fallback implementation of partial derivatives, but it is
+    // pretty slow
+    void slow_Df(int k_param , matrix_type &D, numeric_type delta = 1e-6) {
+        assert_param_dim(k_param);
+        
+        // get starting point and dimension of f(x)
+        vector_type x = get_param(0), y0;
+        f(y0);
         int x_size = x.size(), y_size = y0.size();
-        y = ddf::matrix<numeric_type>(y_size, x_size);
+        D = matrix_type(y_size, x_size);
 
         // calculate derivatives
+        vector_type y1(y_size);
         for (int dim = 0; dim < x_size; dim++) {
+            // move a small step toward this dimension
             numeric_type x_dim = x[dim];
             x[dim] += delta;
-            ddf::vector<numeric_type> y1(y_size);
-            f_x(x, y1);
+            prepare(k_param, x);
+            ready();
+            f(y1);
             x[dim] = x_dim;
+
+            // partial derivative on this dimension
             y1 -= y0;
             y1 *= (1 / delta);
-            y.set_column(dim, y1);
+            D.set_column(dim, y1);
         }
+
+        // reset param
+        prepare(k_param, x);
+        ready();
     }
 
-    // multiply gradient matrix at x by B
-    virtual void mult_grad(
-        const matrix<numeric_type> &B, const vector<numeric_type> &x,
-        matrix<numeric_type> &y) {
-        matrix<numeric_type> A;
-        Df_x(x, A);
-        A.mult(B, y);
+    // short-hand for evaluating value for operator with 1, 2 and 3 input
+    // parameters
+    void f_x(const vector_type &x, vector_type &y) {
+        prepare(0, x);
+        ready();
+        f(y);
+    }
+    
+    void f_x(const vector_type &x0, const vector_type &x1, 
+        vector_type &y) {
+        prepare(0, x0);
+        prepare(1, x1);
+        ready();
+        f(y);
     }
 
-    // A multiplied by gradient matrix at x
-    virtual void mult_by_grad(
-        const matrix<numeric_type> &A, const vector<numeric_type> &x, 
-        matrix<numeric_type> &y) {
-        matrix<numeric_type> B;
-        Df_x(x, B);
-        A.mult(B, y);
+    void f_x(const vector_type &x0, const vector_type &x1, 
+        const vector_type &x2, vector_type &y) {
+        prepare(0, x0);
+        prepare(1, x1);
+        prepare(2, x2);
+        ready();
+        f(y);
+    }
+
+    // short-hand for evaluating gradient of operator with 1, 2 and 3 input
+    // parameters
+    void Df_x(const vector_type &x, matrix_type &D) {
+        prepare(0, x);
+        ready();
+        Df(0, D);
+    }
+
+    void Df_x(const vector_type &x0, const vector_type &x1, int k_param,
+        matrix_type &D) {
+        prepare(0, x0);
+        prepare(1, x1);
+        ready();
+        Df(k_param, D);
+    }
+
+    void Df_x(const vector_type &x0, const vector_type &x1,
+        const vector_type &x2, int k_param, matrix_type &D) {
+        prepare(0, x0);
+        prepare(1, x1);
+        prepare(2, x2);
+        ready();
+        Df(k_param, D);
+    }
+
+    // multiply gradient matrix of parameter on k_param-th dimension by B
+    virtual void mult_grad(int k_param, const matrix_type &B, matrix_type &DB) {
+        matrix_type D;
+        Df(k_param, D);
+        D.mult(B, DB);
+    }
+
+    // A multiplied by gradient matrix of parameter on k_param-th dimension at x
+    virtual void mult_by_grad(int k_param, const matrix_type &A, matrix_type &AD) {
+        matrix_type D;
+        Df(k_param, D);
+        A.mult(D, AD);
     }
 
     std::string name() const { return _name; }
+    int n_params() const { return n_params; }
     int mult_opt_level(void) const { return _mult_opt; }
     int mult_by_opt_level(void) const { return _mult_by_opt; }
 
-    char _name[64];
+protected:
+    std::string _name;
+    int _n_params;
 
     // optimization level for jacobian matrix multiplications
     int _mult_opt;
@@ -86,165 +156,224 @@ struct math_op {
 //     where shape of x is (a, b) and shape of v is (b, 1);
 //     y is a vector of (a, 1)
 template <typename numeric_type>
-struct matrix_mult: math_op<numeric_type> {
-    matrix_mult(const vector<numeric_type> &v)
-        : math_op<numeric_type>("matmul", 1, 2), _v(v) {
+class matrix_mult: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+
+    matrix_mult(void): math_op<numeric_type>("matmul", 2, 1, 2) {
     }
 
-    // y = x * _v
-    void f_x(const vector<numeric_type> &x, vector<numeric_type> &y) {
-        matrix<numeric_type> mat = matrix_view_of(x);
-        mat.mult(_v, y);
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        if (k_param == 0) _w = v;
+        else _x = v;
     }
 
-    void Df_x(const vector<numeric_type> &x, matrix<numeric_type> &y) {
-        matrix<numeric_type> mat = matrix_view_of(x);
-        int m = mat.shape(0), n = mat.shape(1);
-        y.resize(m, x.size());
-        y.fill(0);
-        for (int dim = 0; dim < x.size(); dim++) {
-            y(dim / n, dim) = _v[dim % n];
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _w;
+        else return _x;
+    }
+
+    // y = _w * _x
+    void f(vector_type &y) {
+        matrix_type mat = matrix_view_of(_w);
+        mat.mult(_x, y);
+    }
+
+    void Df(int k_param, matrix_type &D) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            D_w(D);
+        } else {
+            D_x(D);
         }
     }
 
-    matrix<numeric_type> matrix_view_of(const vector<numeric_type> &x) const {
-        int n = _v.size();
-        int m = x.size() / n;
+    void D_w(matrix_type &D) {
+        matrix_type mat = matrix_view_of(_w);
+        int m = mat.shape(0), n = mat.shape(1);
+        D.resize(m, _w.size());
+        D.fill(0);
+        for (int k = 0; k < _w.size(); k++) {
+            D(k / n, k) = _x[k % n];
+        }
+    }
+
+    void D_x(matrix_type &D) {
+        matrix_type mat = matrix_view_of(_w);
+        D.resize(mat.shape(0), mat.shape(1));
+        D.copy_from(mat.raw_data());
+    }
+
+    matrix_type matrix_view_of(const vector_type &w) const {
+        int n = _x.size();
+        int m = w.size() / n;
         assert(("matrix size should be multiplier of vector size",
-                m * n == x.size()));
-        return matrix<numeric_type>(m, n, x.raw_data());
+                m * n == w.size()));
+        return matrix_type(m, n, w.raw_data());
     }
 
     // We need to apply an optimization for matrix mult here: the Jacobian of
     // `D (W * x)` has significiant pattern, which would lead to a good
     // optimization
 
-    void mult_grad(
-        const matrix<numeric_type> &B, const vector<numeric_type> &x, 
-        matrix<numeric_type> &y) {
-        ddf::mult_by_strided_matrix(B, _v, y);
+    void mult_grad(int k_param, const matrix_type &B, matrix_type &DB) {
+        if (k_param == 0) {
+            opt::mult_by_strided_matrix(B, _w, DB);
+        } else {
+            math_op<numeric_type>::mult_grad(k_param, B, DB);
+        }
     }
 
-    void mult_by_grad(
-        const matrix<numeric_type> &A, const vector<numeric_type> &x, 
-        matrix<numeric_type> &y) {
-        ddf::mult_strided_matrix(A, _v, y);
+    void mult_by_grad(int k_param, const matrix_type &A, matrix_type &AD) {
+        if (k_param == 0) {
+            opt::mult_strided_matrix(A, _w, AD);
+        } else {
+            math_op<numeric_type>::mult_by_grad(k_param, A, AD);
+        }
     }
 
-    vector<numeric_type> _v;
+protected:
+    vector_type _w;
+    vector_type _x;
 };
 
 // sum cross_entropy(label, softmax(x)) where label in labels
 template <typename numeric_type>
-struct softmax_cross_entropy_with_logits: math_op<numeric_type> {
-    softmax_cross_entropy_with_logits(const vector<numeric_type> &l)
-        : math_op<numeric_type>("DS"), _l(l), _exp_w(0) {
+class softmax_cross_entropy_with_logits: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+    
+    softmax_cross_entropy_with_logits(const vector_type &l)
+        : math_op<numeric_type>("DS", 1), _l(l) {
     }
 
-    void f_x(const vector<numeric_type> &w, vector<numeric_type> &y) {
-        numeric_type multiplier = 0;
-        int n = w.size();
-        assert(("prediction size should match with label", n == _l.size()));
-
-        // TODO: move calculation of multiplier as a common procedure
-        _exp_w.resize(n);
-        for (int k = 0; k < n; k++) {
-            numeric_type exp_wk = exp(w[k]);
-            _exp_w[k] = exp_wk;
-            multiplier += exp_wk;
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            _w = v;
+            
+            // precalculate exp(w) and multiplier
+            numeric_type divider = 0;
+            int n = _w.size();
+            assert(("prediction size should match with label", n == _l.size()));
+            
+            _exp_w.resize(n);
+            for (int k = 0; k < n; k++) {
+                numeric_type exp_wk = exp(_w[k]);
+                _exp_w[k] = exp_wk;
+                divider += exp_wk;
+            }
+            _multiplier = 1 / divider;
         }
-        multiplier = 1 / multiplier;
+    }
 
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _w;
+        else return vector_type();
+    }
+
+    void f(vector_type &y) {
+        int n = _w.size();
         numeric_type sum_ce = 0;
         for (int k = 0; k < n; k++) {
-            sum_ce -= _l[k] * log(_exp_w[k] * multiplier);
+            sum_ce -= _l[k] * log(_exp_w[k] * _multiplier);
         }
 
         y.resize(1);
         y[0] = sum_ce;
     }
 
-    void Df_x(const vector<numeric_type> &w, matrix<numeric_type> &y) {
-        numeric_type multiplier = 0;
-        int n = w.size();
-        y.resize(1, n);
-
-        // TODO: move calculation of multiplier as a common procedure
-        _exp_w.resize(n);
-        for (int k = 0; k < n; k++) {
-            numeric_type exp_wk = exp(w[k]);
-            _exp_w[k] = exp_wk;
-            multiplier += exp_wk;
+    void Df(int k_param, matrix_type &D) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            D_w(D);
         }
-        multiplier = 1 / multiplier;
-
+    }
+    
+    void D_w(matrix_type &D) {
+        int n = _w.size();
+        D.resize(1, n);
         for (int i = 0; i < n; i++) {
-            y(0, i) = (_exp_w[i] * multiplier) - _l[i];
+            D(0, i) = (_exp_w[i] * _multiplier) - _l[i];
         }
     }
 
-    vector<numeric_type> _l;
-    vector<numeric_type> _exp_w;
+protected:
+    vector_type _w;
+    vector_type _l;
+    vector_type _exp_w;
+    numeric_type _multiplier;
 };
 
 // Rectifier
 template <typename numeric_type>
-struct relu: math_op<numeric_type> {
-    relu(): math_op<numeric_type>("relu") {
+class relu: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+    
+    relu(): math_op<numeric_type>("relu", 1) {
     }
 
-    void f_x(const vector<numeric_type> &x, vector<numeric_type> &y) {
-        int n = x.size();
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        _x = v;
+    }
+    
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _x;
+        else return vector_type();
+    }
+
+    void f(vector_type &y) {
+        int n = _x.size();
         y.resize(n);
         for (int k = 0; k < n; k++) {
-            y[k] = x[k] > 0? x[k]: 0;
+            y[k] = _x[k] > 0? _x[k]: 0;
         }
     }
 
-    void Df_x(const vector<numeric_type> &x, matrix<numeric_type> &y) {
-        int n = x.size();
-        y.resize(n, n);
-        y.fill(0);
+    void Df(int k_param, matrix_type &D) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            D_x(D);
+        }
+    }
+
+    void D_x(matrix_type &D) {
+        int n = _x.size();
+        D.resize(n, n);
+        D.fill(0);
         for (int k = 0; k < n; k++) {
-            y(k, k) = x[k] > 0? 1: 0;
+            D(k, k) = _x[k] > 0? 1: 0;
         }
     }
 
     // the jacobian of `D relu` is a diagonal matrix, which would lead to a
     // good optimization
 
-    void mult_grad(
-        const matrix<numeric_type> &B, const vector<numeric_type> &x, 
-        matrix<numeric_type> &y) {
-        int m = x.size();
-        int n = B.shape(1);
-        assert(("matrix size should be multiplicable", m == B.shape(0)));
-        y.resize(m, n);
-        for (int k = 0; k < m; k++) {
-            if (x[k] > 0) {
-                std::copy_n(&B(k,0), n, &y(k,0));
-            } else {
-                std::fill_n(&y(k,0), n, 0);
-            }
+    void mult_grad(int k_param, const matrix_type &B, matrix_type &DB) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            opt::mult_by_relu_matrix(B, _x, DB);
         }
     }
 
-    void mult_by_grad(
-        const matrix<numeric_type> &A, const vector<numeric_type> &x, 
-        matrix<numeric_type> &y) {
-        int m = A.shape(0);
-        int n = x.size();
-        assert(("matrix size should be multiplicable", A.shape(1) == n));
-        y.resize(m, n);
-        for (int k = 0; k < n; k++) {
-            if (x[k] > 0) {
-                for (int l = 0; l < m; l++) y(l,k) = A(l,k);
-            } else {
-                for (int l = 0; l < m; l++) y(l,k) = 0;
-            }
+    void mult_by_grad(int k_param, const matrix_type &A, matrix_type &AD) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            opt::mult_relu_matrix(A, _x, AD);
         }
     }
 
+protected:
+    vector_type _x;
 };
 
 } // end namespace ddf

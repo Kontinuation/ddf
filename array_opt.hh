@@ -4,6 +4,7 @@
 #include "nd_array.hh"
 
 namespace ddf {
+namespace opt {
 
 template <typename numeric_type>
 void mult_strided_matrix(
@@ -80,6 +81,41 @@ void mult_by_strided_matrix(
     }
 }
 
+template <typename numeric_type>
+void mult_relu_matrix(
+    const matrix<numeric_type> &A, const vector<numeric_type> &v,
+    matrix<numeric_type> &C) {
+    int m = A.shape(0);
+    int n = v.size();
+    assert(("matrix size should be multiplicable", A.shape(1) == n));
+    C.resize(m, n);
+    for (int k = 0; k < n; k++) {
+        if (v[k] > 0) {
+            for (int l = 0; l < m; l++) C(l,k) = A(l,k);
+        } else {
+            for (int l = 0; l < m; l++) C(l,k) = 0;
+        }
+    }
+}
+
+template <typename numeric_type>
+void mult_by_relu_matrix(
+    const matrix<numeric_type> &B, const vector<numeric_type> &v,
+    matrix<numeric_type> &C) {
+    int m = v.size();
+    int n = B.shape(1);
+    assert(("matrix size should be multiplicable", m == B.shape(0)));
+    C.resize(m, n);
+    for (int k = 0; k < m; k++) {
+        if (v[k] > 0) {
+            std::copy_n(&B(k,0), n, &C(k,0));
+        } else {
+            std::fill_n(&C(k,0), n, 0);
+        }
+    }
+}
+
+} // end namespace opt
 } // end namespace ddf
 
 #endif /* ARRAY_OPT_H */

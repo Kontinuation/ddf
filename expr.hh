@@ -3,6 +3,7 @@
 
 #include "nd_array.hh"
 #include "array_opt.hh"
+#include <vector>
 #include <algorithm>
 #include <cstring>
 
@@ -34,6 +35,19 @@ struct math_expr {
     }
     expr_type type;
 };
+
+// utility function for cloning multiple expressions at once
+template <typename numeric_type>
+std::vector<math_expr<numeric_type> *> 
+clone_exprs(const std::vector<math_expr<numeric_type> *> &exprs) {
+    std::vector<math_expr<numeric_type> *> ret;
+    size_t n_exprs = exprs.size();
+    ret.reserve(n_exprs);
+    for (size_t k = 0; k < n_exprs; k++) {
+        ret.push_back(exprs[k]->clone());
+    }
+    return ret;
+}
 
 // forward declarations for recursive datatypes
 template <typename numeric_type> struct constant;
@@ -106,11 +120,9 @@ struct identity: math_expr<numeric_type> {
 // dx/dx = 1
 template <typename numeric_type>
 struct variable: math_expr<numeric_type> {
-    variable(const char *var, const vector<numeric_type> &val)
-        : _val(val) {
+    variable(const std::string &var, const vector<numeric_type> &val)
+        : _var(var), _val(val) {
         this->type = expr_type::VARIABLE;
-        strncpy(_var, var, sizeof _var);
-        _var[(sizeof _var) - 1] = '\0';
     }
 
     void set_value(const vector<numeric_type> &val) {
@@ -118,7 +130,7 @@ struct variable: math_expr<numeric_type> {
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
-        if (!strcmp(var, _var)) {
+        if (!_var.compare(var)) {
             return new identity<numeric_type>(_val.size());
         } else {
             return nullptr;
@@ -126,7 +138,7 @@ struct variable: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        y = _val.clone();          // y.copy_from(x);
+        y.copy_from(_val);      // y = _val.clone();
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -137,53 +149,96 @@ struct variable: math_expr<numeric_type> {
         return _var;
     }
 
-    char _var[64];
+    std::string _var;
     vector<numeric_type> _val;
 };
 
 // df(arg)/dx = darg/dx * df(arg)/dx
 template <typename numeric_type>
 struct function_call: math_expr<numeric_type> {
-    function_call(math_op<numeric_type> *op, math_expr<numeric_type> *arg)
-        : _op(op), _arg(arg) {
+    function_call(math_op<numeric_type> *op, 
+        math_expr<numeric_type> *arg0 = nullptr, 
+        math_expr<numeric_type> *arg1 = nullptr, 
+        math_expr<numeric_type> *arg2 = nullptr) 
+        : _op(op) {
         this->type = expr_type::FUNCTION_CALL;
+        do {
+            if (!arg0) break; else _args.push_back(arg0);
+            if (!arg1) break; else _args.push_back(arg1);
+            if (!arg2) break; else _args.push_back(arg2);
+        } while(0);
+        _xs.resize(_args.size());        
+    }
+
+    function_call(math_op<numeric_type> *op, 
+        const std::vector<math_expr<numeric_type> *> &args)
+        : _op(op), _args(args) {
+        this->type = expr_type::FUNCTION_CALL;
+        _xs.resize(args.size());
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
-        math_expr<numeric_type> *d_arg = _arg->derivative(var);
+        math_expr<numeric_type> *d_arg = nullptr;
+        size_t n_args = _args.size();
+        int k_param = -1;
+        for (size_t k = 0; k < n_args; k++) {
+            math_expr<numeric_type> *d_argk = _args[k]->derivative(var);
+            if (d_argk != nullptr) {
+                if (d_arg == nullptr) {
+                    d_arg = d_argk;
+                    k_param = (int) k;
+                } else {
+                    assert(("invalid expression", false));
+                }
+            }
+        }        
+        
         if (d_arg) {
-            return new dfunction_call<numeric_type>(_op, _arg->clone(), d_arg);
+            return new dfunction_call<numeric_type>(
+                _op, clone_exprs(_args), k_param, d_arg);
         } else {
             return nullptr;
         }
     }
 
     void eval(vector<numeric_type> &y) {
-        _arg->eval(_x);
-        _op->f_x(_x, y);
+        size_t n_args = _args.size();
+        for (size_t k = 0; k < n_args; k++) {
+            _args[k]->eval(_xs[k]);
+            _op->prepare(k, _xs[k]);
+        }
+        _op->ready();
+        _op->f(y);
     }
 
     math_expr<numeric_type> *clone(void) const {
-        return new function_call(_op, _arg->clone());
+        return new function_call(_op, clone_exprs(_args));
     }
 
     std::string to_string() const {
-        return std::string(_op->_name) + "(" + _arg->to_string() + ")";
+        std::string str_args = "";
+        size_t n_args = _args.size();
+        for (size_t k = 0; k < n_args; k++) {
+            str_args += _args[k]->to_string();
+            if (k != n_args - 1) str_args += ",";
+        }
+        return _op->name() + "(" + str_args + ")";
     }
 
     math_op<numeric_type> *_op;
-    math_expr<numeric_type> *_arg;
-    vector<numeric_type> _x;
+    std::vector<math_expr<numeric_type> *> _args;
+    std::vector<vector<numeric_type> > _xs;
 };
 
 // ddf(arg)/dx is a invalid term
 template <typename numeric_type>
 struct dfunction_call: math_expr<numeric_type> {
     dfunction_call(
-        math_op<numeric_type> *op, math_expr<numeric_type> *arg,
-        math_expr<numeric_type> *d_arg)
-        : _op(op), _arg(arg), _d_arg(d_arg) {
+        math_op<numeric_type> *op, std::vector<math_expr<numeric_type> *> args,
+        int k_param, math_expr<numeric_type> *d_arg)
+        : _op(op), _args(args), _k_param(k_param), _d_arg(d_arg) {
         this->type = expr_type::DFUNCTION_CALL;
+        _xs.resize(args.size());
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -196,53 +251,44 @@ struct dfunction_call: math_expr<numeric_type> {
     }
 
     void grad(matrix<numeric_type> &m) {
+        // evaluate args for op
+        size_t n_args = _args.size();
+        for (size_t k = 0; k < n_args; k++) {
+            _args[k]->eval(_xs[k]);
+            _op->prepare(k, _xs[k]);
+        }
+        _op->ready();
+
         if (_d_arg->type != expr_type::IDENTITY) {
-            _arg->eval(_x);
-
-            // look for optimization opportunity
-            int mult_opt = _op->mult_opt_level();
-            int mult_by_opt = 0;
-            auto d_arg = static_cast<dfunction_call<numeric_type> *>(_d_arg);
-            if (_d_arg->type == expr_type::DFUNCTION_CALL) {
-                if (d_arg->_d_arg->type == expr_type::IDENTITY) {
-                    mult_by_opt = d_arg->_op->mult_by_opt_level();
-                }
-            }
-
-            if (mult_opt > 0 || mult_by_opt > 0) {
-                // optimized case
-                if (mult_opt > mult_by_opt) {
-                    _d_arg->grad(_D_g);
-                    _op->mult_grad(_D_g, _x, m);
-                } else {
-                    _op->Df_x(_x, _D_f);
-                    d_arg->_op->mult_by_grad(_D_f, _x, m);
-                }
-            } else {
-                // fallback case
-                _op->Df_x(_x, _D_f);
-                _d_arg->grad(_D_g);
-                _D_f.mult(_D_g, m); // m = _D_f * _D_g;
-            }
+            // chain rule
+            _op->Df(_k_param, _D_f);
+            _d_arg->grad(_D_g);
+            _D_f.mult(_D_g, m); // m = _D_f * _D_g;            
         } else {
-            _arg->eval(_x);
-            _op->Df_x(_x, m);
+            _op->Df(_k_param, m);
         }
     }
 
     math_expr<numeric_type> *clone(void) const {
-        return new dfunction_call(_op, _arg->clone(), _d_arg);
+        return new dfunction_call(_op, clone_exprs(_args), _k_param, _d_arg);
     }
 
     std::string to_string() const {
-        return ("D " + std::string(_op->_name)) + "(" + _arg->to_string() + ") "
+        std::string str_args = "";
+        size_t n_args = _args.size();
+        for (size_t k = 0; k < n_args; k++) {
+            str_args += _args[k]->to_string();
+            if (k != n_args - 1) str_args += ",";
+        }
+        return ("D " + std::string(_op->name())) + "(" + str_args + ") "
             + _d_arg->to_string();
     }
     
     math_op<numeric_type> *_op;
-    math_expr<numeric_type> *_arg;
+    std::vector<math_expr<numeric_type> *> _args;
+    int _k_param;
     math_expr<numeric_type> *_d_arg;
-    vector<numeric_type> _x;
+    std::vector<vector<numeric_type> > _xs;
     matrix<numeric_type> _D_f;
     matrix<numeric_type> _D_g;
 };

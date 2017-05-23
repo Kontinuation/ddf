@@ -98,12 +98,12 @@ struct nd_array_base {
     nd_array_base &copy_from(const nd_array_base &v) {
         if (_raw_data != v._raw_data) {
             if (_buf_size == v._buf_size) {
-                copy_from(v._raw_data);
                 _buf_size = v._buf_size;
-                std::copy_n(_shape, n_dim, v._shape);
-                std::copy_n(_dim_size, n_dim, v._dim_size);
+                std::copy_n(v._shape, n_dim, _shape);
+                std::copy_n(v._dim_size, n_dim, _dim_size);
+                copy_from(v._raw_data);
             } else {
-                this->operator = (v);
+                this->operator = (v.base_clone());
             }
         }
         return *this;
@@ -161,6 +161,9 @@ struct nd_array_base {
 
     // make a deep copy
     nd_array_base base_clone(void) const {
+#ifdef NOTICE_ALLOC_CALL
+        logging::trace("cloning new array, size: %d", _buf_size); 
+#endif
         numeric_type *new_data = new numeric_type[_buf_size];
         std::copy_n(_raw_data, _buf_size, new_data);
         return nd_array_base(_shape, new_data, true);

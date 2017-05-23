@@ -57,22 +57,19 @@ void test_matmul(void)
         { 5.0, 6.0, 7.0, 8.0 },
         { 9.0, 10.0, 11.0, 12.0 },
     };
-    double v[4] = {1.0, 2.0, 3.0, 4.0};
+    double v0[4] = {1.0, 2.0, 3.0, 4.0};
     ddf::vector<double> w(12, (double *) mat);
+    ddf::vector<double> v(4, v0);
     printf("w: %s\n", w.to_string().c_str());
+    printf("v: %s\n", v.to_string().c_str());
 
-    ddf::matrix_mult<double> op_matmul(ddf::vector<double>(4, v));
+    ddf::matrix_mult<double> op_matmul;
     ddf::vector<double> y(0);
-    op_matmul.f_x(w, y);
+    op_matmul.f_x(w, v, y);
     printf("f_x: %s\n", y.to_string().c_str());
 
-    for (int k = 0; k < w.size(); k++) {
-        op_matmul.f_x(w, y);
-        printf("f_x%d: %s\n", k, y.to_string().c_str());
-    }
-
     ddf::matrix<double> D(0,0);
-    op_matmul.Df_x(w, D);
+    op_matmul.Df_x(w, v, 0, D);
     printf("Df_x: %s\n", D.to_string().c_str());
 }
 
@@ -128,16 +125,18 @@ void test_expr(void)
 
     ddf::variable<double> *var_w =
         new ddf::variable<double>("w", ddf::vector<double>(12, w0));
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x", ddf::vector<double>(4, x));
     ddf::variable<double> *var_b =
         new ddf::variable<double>("b", ddf::vector<double>(3, b0));
 
     // predict: w * x + b
-    ddf::matrix_mult<double> matmul(ddf::vector<double>(4, x));
+    ddf::matrix_mult<double> matmul;
     ddf::math_expr<double> *predict =
         new ddf::addition<double>(
             new ddf::function_call<double>(
                 &matmul,
-                var_w),
+                var_w, var_x),
             var_b);
 
     // cost: DS(predict, l)
@@ -188,45 +187,71 @@ void test_expr(void)
 
 template <typename numeric_type>
 struct myop_f: ddf::math_op<numeric_type> {
-    myop_f(void): ddf::math_op<numeric_type>("f") {
+    myop_f(void): ddf::math_op<numeric_type>("f", 1) {
     }
 
-    void f_x(const ddf::vector<numeric_type> &x, ddf::vector<numeric_type> &y) {
+    void prepare(int k_param, const ddf::vector<numeric_type> &v) {
+        assert_param_dim(k_param);
+        _x = v;
+    }
+
+    ddf::vector<numeric_type> get_param(int k_param) {
+        assert_param_dim(k_param);
+        return _x;
+    }
+
+    void f(ddf::vector<numeric_type> &y) {
         y.resize(3);
-        y[0] = sin(x[0]);
-        y[1] = x[0] - x[1];
-        y[2] = x[0] * x[1];
+        y[0] = sin(_x[0]);
+        y[1] = _x[0] - _x[1];
+        y[2] = _x[0] * _x[1];
     }
 
-    void Df_x(const ddf::vector<numeric_type> &x, ddf::matrix<numeric_type> &y) {
-        y.resize(3, 2);
-        y(0,0) = cos(x[0]);
-        y(0,1) = 0;
-        y(1,0) = 1;
-        y(1,1) = -1;
-        y(2,0) = x[1];
-        y(2,1) = x[0];
+    void Df(int k_param, ddf::matrix<numeric_type> &D) {
+        assert_param_dim(k_param);
+        D.resize(3, 2);
+        D(0,0) = cos(_x[0]);
+        D(0,1) = 0;
+        D(1,0) = 1;
+        D(1,1) = -1;
+        D(2,0) = _x[1];
+        D(2,1) = _x[0];
     }
+
+    ddf::vector<numeric_type> _x;
 };
 
 template <typename numeric_type>
 struct myop_g: ddf::math_op<numeric_type> {
-    myop_g(void): ddf::math_op<numeric_type>("g") {
+    myop_g(void): ddf::math_op<numeric_type>("g", 1) {
     }
 
-    void f_x(const ddf::vector<numeric_type> &x, ddf::vector<numeric_type> &y) {
+    void prepare(int k_param, const ddf::vector<numeric_type> &v) {
+        assert_param_dim(k_param);
+        _x = v;
+    }
+
+    ddf::vector<numeric_type> get_param(int k_param) {
+        assert_param_dim(k_param);
+        return _x;
+    }
+
+    void f(ddf::vector<numeric_type> &y) {
         y.resize(2);
-        y[0] = x[0] + x[1];
-        y[1] = x[0] * x[1];
+        y[0] = _x[0] + _x[1];
+        y[1] = _x[0] * _x[1];
     }
 
-    void Df_x(const ddf::vector<numeric_type> &x, ddf::matrix<numeric_type> &y) {
-        y.resize(2, 2);
-        y(0,0) = 1;
-        y(0,1) = 1;
-        y(1,0) = x[1];
-        y(1,1) = x[0];
+    void Df(int k_param, ddf::matrix<numeric_type> &D) {
+        assert_param_dim(k_param);
+        D.resize(2, 2);
+        D(0,0) = 1;
+        D(0,1) = 1;
+        D(1,0) = _x[1];
+        D(1,1) = _x[0];
     }
+
+    ddf::vector<numeric_type> _x;
 };
 
 void test_fg()
@@ -300,10 +325,16 @@ void test_array_opt(void)
             9, 10, 11, 12,
         };
         double x0[4] = {1.0, 2.0, 3.0, 4.0}; // sample
-        ddf::matrix_mult<double> matmul(ddf::vector<double>(4, x0));
+        ddf::vector<double> w(12, w0);
+        ddf::vector<double> x(4, x0);
+        ddf::matrix_mult<double> matmul;
 
+        matmul.prepare(0, w);
+        matmul.prepare(1, x);
+        matmul.ready();
+        
         ddf::matrix<double> D;
-        matmul.Df_x(ddf::vector<double>(12, w0), D);
+        matmul.Df(0, D);
 
         printf("D: %s\n", D.to_string().c_str());
 
@@ -314,7 +345,8 @@ void test_array_opt(void)
         ddf::matrix<double> A(2, 3, a0);
         ddf::matrix<double> AD(0,0);
         printf("A * D: %s\n", (A * D).to_string().c_str());
-        ddf::mult_strided_matrix(A, D, AD);
+        matmul.mult_by_grad(0, A, AD);
+        // ddf::opt::mult_strided_matrix(A, D, AD);
         printf("AD: %s\n", AD.to_string().c_str());
 
         double b0[24] = {
@@ -325,7 +357,9 @@ void test_array_opt(void)
         ddf::matrix<double> DB(0,0);
         printf("D * B: %s\n", (D * B).to_string().c_str());
 
-        matmul.mult_grad(B, ddf::vector<double>(4, x0), DB);
+        matmul.prepare(0, x);
+        matmul.ready();        
+        matmul.mult_grad(0, B, DB);
         printf("DB: %s\n", DB.to_string().c_str());
     }
 
@@ -341,16 +375,19 @@ void test_array_opt(void)
         };
 
         ddf::vector<double> x(4, x0);
+        relu.prepare(0, x);
+        relu.ready();
+            
         ddf::matrix<double> B(4,3, b0);
         ddf::matrix<double> D, DB, AD;
-        relu.Df_x(x, D);
+        relu.Df(0, D);
         printf("D * B: %s\n", (D * B).to_string().c_str());
-        relu.mult_grad(B, x, DB);
+        relu.mult_grad(0, B, DB);
         printf("DB: %s\n", DB.to_string().c_str());
 
         ddf::matrix<double> A(3,4, b0);
         printf("A * D: %s\n", (A * D).to_string().c_str());
-        relu.mult_by_grad(A, x, AD);
+        relu.mult_by_grad(0, A, AD);
         printf("AD: %s\n", AD.to_string().c_str());
     }
         
@@ -361,14 +398,17 @@ void test_relu(void)
     double x0[5] = {1.0, -2.0, 3.0, -4.0, -5.0}; // sample
     ddf::vector<double> x(5, x0);
     ddf::relu<double> rl;
+    rl.prepare(0, x);
+    rl.ready();
+    
     ddf::matrix<double> D_rl;
     ddf::vector<double> relu_x;
-    rl.f_x(x, relu_x);
-    rl.Df_x(x, D_rl);
+    rl.f(relu_x);
+    rl.Df(0, D_rl);
     printf("relu_x: %s\nD_rl: %s\n", 
         relu_x.to_string().c_str(), D_rl.to_string().c_str());
 
-    rl.slow_Df_x(x, D_rl);
+    rl.slow_Df(0, D_rl);
     printf("slow_D_rl: %s\n",
         D_rl.to_string().c_str());
 }
@@ -379,9 +419,9 @@ int main(int argc, char *argv[])
     test_nd_array();;
     test_softmax();
     test_matmul();
-    test_expr();
-    test_fg();
     test_array_opt();
     test_relu();
+    test_expr();
+    test_fg();
     return 0;
 }

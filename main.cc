@@ -51,14 +51,16 @@ int main(int argc, char *argv[]) {
             new ddf::variable<float>("w", ddf::vector<float>(len_w0, w0));
         ddf::variable<float> *var_b =
             new ddf::variable<float>("b", ddf::vector<float>(len_b0, b0));
+        ddf::variable<float> *var_x = 
+            new ddf::variable<float>("x", ddf::vector<float>(dimension, x));
 
         // predict: w * x + b
-        ddf::matrix_mult<float> matmul(ddf::vector<float>(dimension, x));
+        ddf::matrix_mult<float> matmul;
         ddf::math_expr<float> *predict =
             new ddf::addition<float>(
                 new ddf::function_call<float>(
                     &matmul,
-                    var_w),
+                    var_w, var_x),
                 var_b);
 
         // loss: DS(predict, l)
