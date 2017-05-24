@@ -247,8 +247,8 @@ public:
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
     
-    softmax_cross_entropy_with_logits(const vector_type &l)
-        : math_op<numeric_type>("DS", 1), _l(l) {
+    softmax_cross_entropy_with_logits(void)
+        : math_op<numeric_type>("DS", 1) {
     }
 
     void prepare(int k_param, const vector_type &v) {
@@ -258,9 +258,7 @@ public:
             
             // precalculate exp(w) and multiplier
             numeric_type divider = 0;
-            int n = _w.size();
-            assert(("prediction size should match with label", n == _l.size()));
-            
+            int n = _w.size();            
             _exp_w.resize(n);
             for (int k = 0; k < n; k++) {
                 numeric_type exp_wk = exp(_w[k]);
@@ -268,17 +266,21 @@ public:
                 divider += exp_wk;
             }
             _multiplier = 1 / divider;
+        } else if (k_param == 1) {
+            _l = v;
         }
     }
 
     vector_type get_param(int k_param) {
         assert_param_dim(k_param);
         if (k_param == 0) return _w;
+        else if (k_param == 1) return _l;
         else return vector_type();
     }
 
     void f(vector_type &y) {
         int n = _w.size();
+        assert(("prediction size should match with label", n == _l.size()));
         numeric_type sum_ce = 0;
         for (int k = 0; k < n; k++) {
             sum_ce -= _l[k] * log(_exp_w[k] * _multiplier);
@@ -292,11 +294,14 @@ public:
         assert_param_dim(k_param);
         if (k_param == 0) {
             D_w(D);
+        } else {
+            assert(("gradient of label is not implemented", false));
         }
     }
     
     void D_w(matrix_type &D) {
         int n = _w.size();
+        assert(("prediction size should match with label", n == _l.size()));
         D.resize(1, n);
         for (int i = 0; i < n; i++) {
             D(0, i) = (_exp_w[i] * _multiplier) - _l[i];

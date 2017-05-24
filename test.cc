@@ -81,21 +81,18 @@ void test_softmax(void)
     ddf::vector<double> y(1);
     ddf::vector<double> l(4, label);
     printf("w: %s, l: %s\n", w.to_string().c_str(), l.to_string().c_str());
-    ddf::softmax_cross_entropy_with_logits<double> op_DS(l);
-    op_DS.f_x(w, y);
-    printf("f_x: %s\n", y.to_string().c_str());
-    op_DS.f_x(w, y);
-    printf("f_x: %s\n", y.to_string().c_str());
-    op_DS.f_x(w, y);
-    printf("f_x: %s\n", y.to_string().c_str());
-    op_DS.f_x(w, y);
+    ddf::softmax_cross_entropy_with_logits<double> op_DS;
+    op_DS.prepare(0, w);
+    op_DS.prepare(1, l);
+    op_DS.ready();
+    op_DS.f(y);
     printf("f_x: %s\n", y.to_string().c_str());
 
     ddf::matrix<double> D(0,0);
-    op_DS.Df_x(w, D);
+    op_DS.Df(0, D);
     printf("Df_x: %s\n", D.to_string().c_str());
 
-    op_DS.f_x(w, y);
+    op_DS.f(y);
     double delta = 1e-10;
     ddf::vector<double> y1(0);
     for (int k = 0; k < 4; k++) {
@@ -140,9 +137,12 @@ void test_expr(void)
             var_b);
 
     // loss: DS(predict, l)
-    ddf::softmax_cross_entropy_with_logits<double> DS(ddf::vector<double>(3, l));
+    ddf::softmax_cross_entropy_with_logits<double> DS;
     ddf::math_expr<double> *loss =
-        new ddf::function_call<double>(&DS, predict /* predict->clone() */);
+        new ddf::function_call<double>(&DS, 
+            predict /* predict->clone() */,
+            new ddf::constant<double>(ddf::vector<double>(3, l))
+            );
 
     printf("predict: %s\n", predict->to_string().c_str());
     printf("loss: %s\n", loss->to_string().c_str());
@@ -264,7 +264,8 @@ void test_fg()
     myop_g<double> g;
     double x0[2] = { 0.3, 0.6 };
 
-    ddf::variable<double> *var_x = new ddf::variable<double>("x", ddf::vector<double>(2, x0));
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x", ddf::vector<double>(2, x0));
     ddf::math_expr<double> *fg =
         new ddf::function_call<double>(
             &f,
@@ -281,11 +282,6 @@ void test_fg()
     fg->eval(fg_val);
     printf("fg_val: %s\n", fg_val.to_string().c_str());
     fg->eval(fg_val);
-    printf("fg_val: %s\n", fg_val.to_string().c_str());
-    fg->eval(fg_val);
-    printf("fg_val: %s\n", fg_val.to_string().c_str());
-    fg->eval(fg_val);
-    printf("fg_val: %s\n", fg_val.to_string().c_str());
 
     ddf::matrix<double> dfg_val(3, 2);
     d_fg->grad(dfg_val);

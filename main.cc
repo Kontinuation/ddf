@@ -1,5 +1,3 @@
-#define NOTICE_ALLOC_CALL
-
 #include <signal.h>
 #include <cstring>
 #include "logging.hh"
@@ -53,6 +51,8 @@ int main(int argc, char *argv[]) {
             new ddf::variable<float>("b", ddf::vector<float>(len_b0, b0));
         ddf::variable<float> *var_x = 
             new ddf::variable<float>("x", ddf::vector<float>(dimension, x));
+        ddf::variable<float> *var_l = 
+            new ddf::variable<float>("l", ddf::vector<float>(n_classes, l));
 
         // predict: w * x + b
         ddf::matrix_mult<float> matmul;
@@ -64,13 +64,20 @@ int main(int argc, char *argv[]) {
                 var_b);
 
         // loss: DS(predict, l)
-        ddf::softmax_cross_entropy_with_logits<float>
-            DS(ddf::vector<float>(n_classes, l));
+        ddf::softmax_cross_entropy_with_logits<float> DS;
         ddf::math_expr<float> *loss =
-        new ddf::function_call<float>(&DS, predict /* predict->clone() */);
+            new ddf::function_call<float>(&DS, 
+                predict, /* predict->clone() */
+                var_l);
 
         ddf::math_expr<float> *dloss_dw = loss->derivative("w");
         ddf::math_expr<float> *dloss_db = loss->derivative("b");
+        
+        logging::info("predict: %s", predict->to_string().c_str());
+        logging::info("loss: %s", loss->to_string().c_str());
+        logging::info("dloss_dw: %s", dloss_dw->to_string().c_str());
+        logging::info("dloss_db: %s", dloss_db->to_string().c_str());
+        
         ddf::vector<float> sum_dw(len_w0);
         ddf::vector<float> sum_db(n_classes);
         ddf::matrix<float> dw(0,0);
@@ -79,7 +86,7 @@ int main(int argc, char *argv[]) {
         float alpha = 0.5;
         // float alpha = 0.000003;
 
-        printf("len_w0: %d, len_b0: %d, dimension: %d, n_samples: %d, n_classes: %d\n",
+        logging::info("len_w0: %d, len_b0: %d, dimension: %d, n_samples: %d, n_classes: %d",
             len_w0, len_b0, dimension, n_samples, n_classes);
 
         float sum_loss = 0;
@@ -90,7 +97,7 @@ int main(int argc, char *argv[]) {
             loss->eval(c);
             sum_loss += c[0];
         }
-        printf("initial loss: %f\n", sum_loss);
+        logging::info("initial loss: %f", sum_loss);
 
         for (int iter = 0; iter < 20; iter++) {
             clock_t start = clock();
