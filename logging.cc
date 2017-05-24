@@ -4,10 +4,8 @@
 #include <cstdarg>
 #include <mutex>
 
-
 // global mutex for making our synchronous logging methods reentrant
 static std::mutex __s_logging_lock;
-
 
 // terminal controllers/colors
 #define TC_RESET     "\e[0m"
