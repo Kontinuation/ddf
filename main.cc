@@ -36,32 +36,55 @@ int main(int argc, char *argv[]) {
         int n_samples = d_train.n_samples();
         int n_classes = d_train.n_classes();
 
-        int len_w0 = n_classes * dimension;
-        int len_b0 = n_classes;
+        int n_hidden = 20;
+        int len_w0 = n_hidden * dimension;
+        int len_b0 = n_hidden;
+        int len_w1 = n_classes * n_hidden;
+        int len_b1 = n_classes;
         float *w0 = new float[len_w0];
         float *b0 = new float[len_b0];
+        float *w1 = new float[len_w1];
+        float *b1 = new float[len_b1];
         float *x = new float[dimension];
         float *l = new float[n_classes];
-        std::fill_n(w0, len_w0, 0.1);
-        std::fill_n(b0, len_b0, 0.0);
 
-        ddf::variable<float> *var_w =
-            new ddf::variable<float>("w", ddf::vector<float>(len_w0, w0));
-        ddf::variable<float> *var_b =
-            new ddf::variable<float>("b", ddf::vector<float>(len_b0, b0));
+        ddf::variable<float> *var_w0 =
+            new ddf::variable<float>("w0", ddf::vector<float>(len_w0, w0));
+        ddf::variable<float> *var_b0 =
+            new ddf::variable<float>("b0", ddf::vector<float>(len_b0, b0));
+        ddf::variable<float> *var_w1 =
+            new ddf::variable<float>("w1", ddf::vector<float>(len_w1, w1));
+        ddf::variable<float> *var_b1 =
+            new ddf::variable<float>("b1", ddf::vector<float>(len_b1, b1));
+
+        // initial value of hyper parameters
+        var_w0->value().fill_rand();
+        var_b0->value().fill_rand();
+        var_w1->value().fill_rand();
+        var_b1->value().fill_rand();
+        
         ddf::variable<float> *var_x = 
             new ddf::variable<float>("x", ddf::vector<float>(dimension, x));
         ddf::variable<float> *var_l = 
             new ddf::variable<float>("l", ddf::vector<float>(n_classes, l));
 
-        // predict: w * x + b
-        ddf::matrix_mult<float> matmul;
+        // predict: w1 * (relu(w0 * x + b0)) + b1
+        ddf::matrix_mult<float> matmul_0, matmul_1;
+        ddf::relu<float> relu_0;
         ddf::math_expr<float> *predict =
             new ddf::addition<float>(
                 new ddf::function_call<float>(
-                    &matmul,
-                    var_w, var_x),
-                var_b);
+                    &matmul_1,
+                    var_w1, 
+                    new ddf::function_call<float>(
+                        &relu_0,
+                        new ddf::addition<float>(
+                            new ddf::function_call<float>(
+                                &matmul_0,
+                                var_w0, 
+                                var_x),
+                            var_b0))),
+                var_b1);
 
         // loss: DS(predict, l)
         ddf::softmax_cross_entropy_with_logits<float> DS;
@@ -70,22 +93,32 @@ int main(int argc, char *argv[]) {
                 predict, /* predict->clone() */
                 var_l);
 
-        ddf::math_expr<float> *dloss_dw = loss->derivative("w");
-        ddf::math_expr<float> *dloss_db = loss->derivative("b");
+        ddf::math_expr<float> *dloss_dw0 = loss->derivative("w0");
+        ddf::math_expr<float> *dloss_db0 = loss->derivative("b0");
+        ddf::math_expr<float> *dloss_dw1 = loss->derivative("w1");
+        ddf::math_expr<float> *dloss_db1 = loss->derivative("b1");
         
         logging::info("predict: %s", predict->to_string().c_str());
         logging::info("loss: %s", loss->to_string().c_str());
-        logging::info("dloss_dw: %s", dloss_dw->to_string().c_str());
-        logging::info("dloss_db: %s", dloss_db->to_string().c_str());
+        logging::info("dloss_dw0: %s", dloss_dw0->to_string().c_str());
+        logging::info("dloss_db0: %s", dloss_db0->to_string().c_str());
+        logging::info("dloss_dw1: %s", dloss_dw1->to_string().c_str());
+        logging::info("dloss_db1: %s", dloss_db1->to_string().c_str());
         
-        ddf::vector<float> sum_dw(len_w0);
-        ddf::vector<float> sum_db(n_classes);
-        ddf::matrix<float> dw(0,0);
-        ddf::matrix<float> db(0,0);
+        ddf::vector<float> sum_dw0(len_w0);
+        ddf::vector<float> sum_db0(len_b0);
+        ddf::vector<float> sum_dw1(len_w1);
+        ddf::vector<float> sum_db1(len_b1);
+        ddf::matrix<float> dw0(0,0);
+        ddf::matrix<float> db0(0,0);
+        ddf::matrix<float> dw1(0,0);
+        ddf::matrix<float> db1(0,0);
+        
         ddf::vector<float> c(0);
-        float alpha = 0.5;
-        // float alpha = 0.000003;
-
+        float alpha = 0.03;
+        
+        n_samples = 1000;
+        
         logging::info("len_w0: %d, len_b0: %d, dimension: %d, n_samples: %d, n_classes: %d",
             len_w0, len_b0, dimension, n_samples, n_classes);
 
@@ -99,11 +132,13 @@ int main(int argc, char *argv[]) {
         }
         logging::info("initial loss: %f", sum_loss);
 
-        for (int iter = 0; iter < 20; iter++) {
+        for (int iter = 0; iter < 2000; iter++) {
             clock_t start = clock();
-
-            sum_dw.fill(0);
-            sum_db.fill(0);
+            sum_dw0.fill(0);
+            sum_db0.fill(0);
+            sum_dw1.fill(0);
+            sum_db1.fill(0);
+            
             for (int k = 0; k < n_samples; k++) {
 
                 // copy training data to placeholder
@@ -114,18 +149,25 @@ int main(int argc, char *argv[]) {
                 l[label[k]] = 1;
 
                 // gradient descent
-                dw.fill(0);
-                db.fill(0);
-                dloss_dw->grad(dw);
-                dloss_db->grad(db);
-                sum_dw += ddf::vector<float>(len_w0, dw.raw_data());
-                sum_db += ddf::vector<float>(len_b0, db.raw_data());
+                dw0.fill(0); db0.fill(0);
+                dw1.fill(0); db1.fill(0);
+                dloss_dw0->grad(dw0); dloss_db0->grad(db0);
+                dloss_dw1->grad(dw1); dloss_db1->grad(db1);
+                sum_dw0 += ddf::vector<float>(len_w0, dw0.raw_data());
+                sum_db0 += ddf::vector<float>(len_b0, db0.raw_data());
+                sum_dw1 += ddf::vector<float>(len_w1, dw1.raw_data());
+                sum_db1 += ddf::vector<float>(len_b1, db1.raw_data());
             }
 
-            sum_dw *= (alpha / n_samples);
-            sum_db *= (alpha / n_samples);
-            var_w->_val -= sum_dw;
-            var_b->_val -= sum_db;
+            sum_dw0 *= (alpha / n_samples);
+            sum_db0 *= (alpha / n_samples);
+            sum_dw1 *= (alpha / n_samples);
+            sum_db1 *= (alpha / n_samples);
+            
+            var_w0->_val -= sum_dw0;
+            var_b0->_val -= sum_db0;
+            var_w1->_val -= sum_dw1;
+            var_b1->_val -= sum_db1;
 
             sum_loss = 0;
             for (int k = 0; k < n_samples; k++) {
@@ -140,6 +182,11 @@ int main(int argc, char *argv[]) {
             logging::info("iter: %d, loss: %f, cost: %f sec",
                 iter, sum_loss,
                 (double)(end - start) / CLOCKS_PER_SEC);
+            
+            // logging::info("w0: %s", ddf::vector<float>(10, var_w0->value().raw_data()).to_string().c_str());
+            // logging::info("b0: %s", ddf::vector<float>(10, var_b0->value().raw_data()).to_string().c_str());
+            // logging::info("w1: %s", ddf::vector<float>(10, var_w1->value().raw_data()).to_string().c_str());
+            // logging::info("b1: %s", ddf::vector<float>(10, var_b1->value().raw_data()).to_string().c_str());
         }
     }
     else if (!strcmp(cmd, "predict")) {

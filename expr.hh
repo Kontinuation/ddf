@@ -134,8 +134,12 @@ struct variable: math_expr<numeric_type> {
           _var(var), _val(val) {
     }
 
+    vector<numeric_type> &value(void) {
+        return _val;
+    }
+
     void set_value(const vector<numeric_type> &val) {
-        _val = val.clone();             // _val.copy_from(val);
+        _val = val;
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -283,7 +287,8 @@ struct dfunction_call: math_expr<numeric_type> {
     }
 
     math_expr<numeric_type> *clone(void) const {
-        return new dfunction_call(_op, clone_exprs(_args), _k_param, _d_arg->clone());
+        return new dfunction_call(
+            _op, clone_exprs(_args), _k_param, _d_arg->clone());
     }
 
     std::string to_string() const {
@@ -293,8 +298,9 @@ struct dfunction_call: math_expr<numeric_type> {
             str_args += _args[k]->to_string();
             if (k != n_args - 1) str_args += ",";
         }
-        return ("D " + std::string(_op->name())) + "(" + str_args + ") "
-            + _d_arg->to_string();
+        return ("D_" + std::to_string(_k_param) +  " " +  
+            std::string(_op->name())) + 
+            "(" + str_args + ") " + _d_arg->to_string();
     }
     
     math_op<numeric_type> *_op;

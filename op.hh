@@ -18,7 +18,7 @@ public:
     typedef matrix<numeric_type> matrix_type;
     
 #define assert_param_dim(k_param)               \
-    assert(("parameter index out of bound", (k_param) >= this->_n_params))
+    assert(("parameter index out of bound", (k_param) < this->_n_params))
     
     math_op(const std::string &name, int n_params, int mult_opt = 0, 
         int mult_by_opt = 0)
@@ -248,7 +248,7 @@ public:
     typedef matrix<numeric_type> matrix_type;
     
     softmax_cross_entropy_with_logits(void)
-        : math_op<numeric_type>("DS", 1) {
+        : math_op<numeric_type>("DS", 2) {
     }
 
     void prepare(int k_param, const vector_type &v) {
