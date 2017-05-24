@@ -1,14 +1,14 @@
 #ifndef OP_H
 #define OP_H
 
+// Deep networks are formed by stacking simple operations to construct a target
+// loss function, then perform minization on that loss function. Here we
+// provide some building blocks (ops) for constructing deep networds.
+
 #include "nd_array.hh"
 #include <cmath>
 
 namespace ddf {
-
-// Deep networks are formed by stacking simple operations to construct a target
-// loss function, then perform minization on that loss function. Here we
-// provide some building blocks (ops) for constructing deep networds.
 
 template <typename _numeric_type>
 class math_op {

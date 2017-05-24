@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <string>
 #include <sstream>
+
+#include "common.hh"
 #include "logging.hh"
 
 namespace ddf {

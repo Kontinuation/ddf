@@ -7,5 +7,6 @@
 #include "array_opt.hh"
 #include "op.hh"
 #include "expr.hh"
+#include "train.hh"
 
 #endif /* DEEP_DARK_FANTASY_H */

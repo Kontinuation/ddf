@@ -1,6 +1,11 @@
 #ifndef EXPR_H
 #define EXPR_H
 
+// Deep Learning requires the minimization of target loss function composed of
+// various very basic building blocks, we designed a syntax tree for describing
+// such functions, so that we can perform automatic differentiation in order to
+// feed it to an iterative optimization algorithm (such as SGD)
+
 #include "nd_array.hh"
 #include "array_opt.hh"
 #include <vector>
@@ -9,12 +14,7 @@
 
 namespace ddf {
 
-// Deep Learning requires the minimization of target loss function composed of
-// various very basic building blocks, we designed a syntax tree for describing
-// such functions, so that we can perform automatic differentiation in order to
-// feed it to an iterative optimization algorithm (such as SGD)
-
-enum class expr_type {
+enum class expr_typeid {
     CONSTANT,
     VARIABLE,
     IDENTITY,
@@ -25,7 +25,10 @@ enum class expr_type {
 };
 
 template <typename _numeric_type>
-struct math_expr {
+class math_expr {
+public:
+    math_expr(expr_typeid type) : type(type) { }
+    virtual ~math_expr(void) = default;
     virtual math_expr *derivative(const char *var) = 0;
     virtual math_expr *clone(void) const = 0;
     virtual std::string to_string() const = 0;
@@ -33,18 +36,23 @@ struct math_expr {
     virtual void grad(matrix<_numeric_type> &m) {
         assert(("cannot calculate grad on this expr", false));
     }
-    expr_type type;
+    expr_typeid type;
+
+private:
+    DISABLE_COPY_AND_ASSIGN(math_expr);
 };
 
 // utility function for cloning multiple expressions at once
 template <typename numeric_type>
-std::vector<math_expr<numeric_type> *> 
-clone_exprs(const std::vector<math_expr<numeric_type> *> &exprs) {
-    std::vector<math_expr<numeric_type> *> ret;
+std::vector<std::shared_ptr<math_expr<numeric_type> > >
+clone_exprs(const std::vector<std::shared_ptr<math_expr<numeric_type> > > &exprs) {
+    std::vector<std::shared_ptr<math_expr<numeric_type> > > ret;
     size_t n_exprs = exprs.size();
     ret.reserve(n_exprs);
     for (size_t k = 0; k < n_exprs; k++) {
-        ret.push_back(exprs[k]->clone());
+        ret.push_back(std::shared_ptr<math_expr<numeric_type> >(
+                exprs[k]->clone())
+            );
     }
     return ret;
 }
@@ -61,8 +69,8 @@ template <typename numeric_type> struct multiplication;
 // dc/dx = 0
 template <typename numeric_type>
 struct constant: math_expr<numeric_type> {
-    constant(const vector<numeric_type> &v): _v(v) {
-        this->type = expr_type::CONSTANT;
+    constant(const vector<numeric_type> &v)
+        : math_expr<numeric_type>(expr_typeid::CONSTANT), _v(v) {
     }
 
     math_expr<numeric_type> *derivative(const char *) {
@@ -86,8 +94,9 @@ struct constant: math_expr<numeric_type> {
 
 template <typename numeric_type>
 struct identity: math_expr<numeric_type> {
-    identity(int size): _size(size) {
-        this->type = expr_type::IDENTITY;
+    identity(int size)
+        : math_expr<numeric_type>(expr_typeid::IDENTITY), 
+          _size(size) {
     }
 
     math_expr<numeric_type> *derivative(const char *) {
@@ -121,8 +130,8 @@ struct identity: math_expr<numeric_type> {
 template <typename numeric_type>
 struct variable: math_expr<numeric_type> {
     variable(const std::string &var, const vector<numeric_type> &val)
-        : _var(var), _val(val) {
-        this->type = expr_type::VARIABLE;
+        : math_expr<numeric_type>(expr_typeid::VARIABLE),
+          _var(var), _val(val) {
     }
 
     void set_value(const vector<numeric_type> &val) {
@@ -156,24 +165,26 @@ struct variable: math_expr<numeric_type> {
 // df(arg)/dx = darg/dx * df(arg)/dx
 template <typename numeric_type>
 struct function_call: math_expr<numeric_type> {
+    typedef std::shared_ptr<math_expr<numeric_type> > shared_math_expr_ptr;
+    
     function_call(math_op<numeric_type> *op, 
         math_expr<numeric_type> *arg0 = nullptr, 
         math_expr<numeric_type> *arg1 = nullptr, 
         math_expr<numeric_type> *arg2 = nullptr) 
-        : _op(op) {
-        this->type = expr_type::FUNCTION_CALL;
+        : math_expr<numeric_type>(expr_typeid::FUNCTION_CALL),
+          _op(op) {
         do {
-            if (!arg0) break; else _args.push_back(arg0);
-            if (!arg1) break; else _args.push_back(arg1);
-            if (!arg2) break; else _args.push_back(arg2);
+            if (!arg0) break; else _args.push_back(shared_math_expr_ptr(arg0));
+            if (!arg1) break; else _args.push_back(shared_math_expr_ptr(arg1));
+            if (!arg2) break; else _args.push_back(shared_math_expr_ptr(arg2));
         } while(0);
         _xs.resize(_args.size());        
     }
 
     function_call(math_op<numeric_type> *op, 
-        const std::vector<math_expr<numeric_type> *> &args)
-        : _op(op), _args(args) {
-        this->type = expr_type::FUNCTION_CALL;
+        const std::vector<shared_math_expr_ptr> &args)
+        : math_expr<numeric_type>(expr_typeid::FUNCTION_CALL),
+          _op(op), _args(args) {
         _xs.resize(args.size());
     }
 
@@ -226,18 +237,20 @@ struct function_call: math_expr<numeric_type> {
     }
 
     math_op<numeric_type> *_op;
-    std::vector<math_expr<numeric_type> *> _args;
+    std::vector<shared_math_expr_ptr> _args;
     std::vector<vector<numeric_type> > _xs;
 };
 
 // ddf(arg)/dx is a invalid term
 template <typename numeric_type>
 struct dfunction_call: math_expr<numeric_type> {
+    typedef std::shared_ptr<math_expr<numeric_type> > shared_math_expr_ptr;
+    
     dfunction_call(
-        math_op<numeric_type> *op, std::vector<math_expr<numeric_type> *> args,
+        math_op<numeric_type> *op, std::vector<shared_math_expr_ptr> args,
         int k_param, math_expr<numeric_type> *d_arg)
-        : _op(op), _args(args), _k_param(k_param), _d_arg(d_arg) {
-        this->type = expr_type::DFUNCTION_CALL;
+        : math_expr<numeric_type>(expr_typeid::DFUNCTION_CALL),
+          _op(op), _args(args), _k_param(k_param), _d_arg(d_arg) {
         _xs.resize(args.size());
     }
 
@@ -259,7 +272,7 @@ struct dfunction_call: math_expr<numeric_type> {
         }
         _op->ready();
 
-        if (_d_arg->type != expr_type::IDENTITY) {
+        if (_d_arg->type != expr_typeid::IDENTITY) {
             // chain rule
             _op->Df(_k_param, _D_f);
             _d_arg->grad(_D_g);
@@ -270,7 +283,7 @@ struct dfunction_call: math_expr<numeric_type> {
     }
 
     math_expr<numeric_type> *clone(void) const {
-        return new dfunction_call(_op, clone_exprs(_args), _k_param, _d_arg);
+        return new dfunction_call(_op, clone_exprs(_args), _k_param, _d_arg->clone());
     }
 
     std::string to_string() const {
@@ -285,9 +298,9 @@ struct dfunction_call: math_expr<numeric_type> {
     }
     
     math_op<numeric_type> *_op;
-    std::vector<math_expr<numeric_type> *> _args;
+    std::vector<shared_math_expr_ptr> _args;
     int _k_param;
-    math_expr<numeric_type> *_d_arg;
+    shared_math_expr_ptr _d_arg;
     std::vector<vector<numeric_type> > _xs;
     matrix<numeric_type> _D_f;
     matrix<numeric_type> _D_g;
@@ -296,9 +309,11 @@ struct dfunction_call: math_expr<numeric_type> {
 // d(a + b)/dx = da/dx + db/dx
 template <typename numeric_type>
 struct addition: math_expr<numeric_type> {
+    typedef std::shared_ptr<math_expr<numeric_type> > shared_math_expr_ptr;
+    
     addition(math_expr<numeric_type> *a, math_expr<numeric_type> *b)
-        : _a(a), _b(b) {
-        this->type = expr_type::ADDITION;
+        : math_expr<numeric_type>(expr_typeid::ADDITION),
+          _a(a), _b(b) {
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -336,8 +351,8 @@ struct addition: math_expr<numeric_type> {
         return "(" + _a->to_string() + " + " + _b->to_string() + ")";
     }
 
-    math_expr<numeric_type> *_a;
-    math_expr<numeric_type> *_b;
+    shared_math_expr_ptr _a;
+    shared_math_expr_ptr _b;
     vector<numeric_type> _x;
     matrix<numeric_type> _D_b;
 };
@@ -345,9 +360,11 @@ struct addition: math_expr<numeric_type> {
 // d (a * b)/dx = da/dx*b + db/dx*a
 template <typename numeric_type>
 struct multiplication: math_expr<numeric_type> {
+    typedef std::shared_ptr<math_expr<numeric_type> > shared_math_expr_ptr;
+
     multiplication(math_expr<numeric_type> *a, math_expr<numeric_type> *b)
-        : _a(a), _b(b) {
-        this->type = expr_type::MULTIPLICATION;
+        : math_expr<numeric_type>(expr_typeid::MULTIPLICATION),
+          _a(a), _b(b) {
     }
 
     math_expr<numeric_type> *derivative(const char *var) {
@@ -367,10 +384,9 @@ struct multiplication: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        vector<numeric_type> x(0);
-        _a->eval(x);
+        _a->eval(_x);
         _b->eval(y);
-        y *= x;
+        y *= _x;
     }
 
     void grad(matrix<numeric_type> &m) {
@@ -384,9 +400,10 @@ struct multiplication: math_expr<numeric_type> {
     std::string to_string() const {
         return "(" + _a->to_string() + " * " + _b->to_string() + ")";
     }    
-    
-    math_expr<numeric_type> *_a;
-    math_expr<numeric_type> *_b;
+
+    shared_math_expr_ptr _a;
+    shared_math_expr_ptr _b;
+    vector<numeric_type> _x;
 };
 
 } // end namespace ddf

@@ -1,6 +1,6 @@
 .PHONY: run test clean
 
-CC_FLAGS = -pg -Wall -Wno-unused-value -std=c++11 -DNDEBUG -O3
+CC_FLAGS = -pg -Wall -Wno-unused-value -std=c++11 -DNDEBUG -O3 -fsanitize=address
 run:
 	g++ main.cc logging.cc -o run $(CC_FLAGS)
 

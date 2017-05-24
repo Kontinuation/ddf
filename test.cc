@@ -139,39 +139,41 @@ void test_expr(void)
                 var_w, var_x),
             var_b);
 
-    // cost: DS(predict, l)
+    // loss: DS(predict, l)
     ddf::softmax_cross_entropy_with_logits<double> DS(ddf::vector<double>(3, l));
-    ddf::math_expr<double> *cost =
+    ddf::math_expr<double> *loss =
         new ddf::function_call<double>(&DS, predict /* predict->clone() */);
 
     printf("predict: %s\n", predict->to_string().c_str());
-    printf("cost: %s\n", cost->to_string().c_str());
+    printf("loss: %s\n", loss->to_string().c_str());
 
     ddf::vector<double> y(3);
     predict->eval(y);
     printf("predict result: %s\n", y.to_string().c_str());
 
-    cost->eval(y);
-    printf("cost result: %s\n", y.to_string().c_str());
+    loss->eval(y);
+    printf("loss result: %s\n", y.to_string().c_str());
 
-    ddf::math_expr<double> *dcost = cost->derivative("w");
-    printf("d cost: %s\n", dcost->to_string().c_str());
+    ddf::math_expr<double> *dloss = loss->derivative("w");
+    printf("d loss: %s\n", dloss->to_string().c_str());
     ddf::matrix<double> dm(0,0);
-    dcost->grad(dm);
-    printf("dcost result: %s\n", dm.to_string().c_str());
+    dloss->grad(dm);
+    printf("dloss result: %s\n", dm.to_string().c_str());
+    delete dloss;
 
-    ddf::math_expr<double> *dcost_b = cost->derivative("b");
-    printf("d cost of b: %s\n", dcost_b->to_string().c_str());
+    ddf::math_expr<double> *dloss_b = loss->derivative("b");
+    printf("d loss of b: %s\n", dloss_b->to_string().c_str());
     ddf::matrix<double> dm_b(0,0);
-    dcost_b->grad(dm_b);
-    printf("dcost_b result: %s\n", dm_b.to_string().c_str());
+    dloss_b->grad(dm_b);
+    printf("dloss_b result: %s\n", dm_b.to_string().c_str());
+    delete dloss_b;
 
     double delta = 1e-6;
     for (size_t k = 0; k < (sizeof w0) / (sizeof w0[0]); k++) {
         double tmp = var_w->_val[k];
         var_w->_val[k] += delta;
         ddf::vector<double> y1(1);
-        cost->eval(y1);
+        loss->eval(y1);
         printf("d w[%lu]: %f\n", k, (y1[0] - y[0]) / delta);
         var_w->_val[k] = tmp;
     }
@@ -179,10 +181,12 @@ void test_expr(void)
         double tmp = var_b->_val[k];
         var_b->_val[k] += delta;
         ddf::vector<double> y1(1);
-        cost->eval(y1);
+        loss->eval(y1);
         printf("d b[%lu]: %f\n", k, (y1[0] - y[0]) / delta);
         var_b->_val[k] = tmp;
     }
+
+    delete loss;
 }
 
 template <typename numeric_type>
@@ -313,6 +317,9 @@ void test_fg()
     fg_val1 *= (1 / delta);
     printf("dx1: %s\n", fg_val1.to_string().c_str());
     var_x->_val[1] = tmp;    
+
+    delete fg;
+    delete d_fg;
 }
 
 void test_array_opt(void)
