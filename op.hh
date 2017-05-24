@@ -229,7 +229,7 @@ public:
 
     void mult_by_grad(int k_param, const matrix_type &A, matrix_type &AD) {
         if (k_param == 0) {
-            opt::mult_strided_matrix(A, _w, AD);
+            opt::mult_strided_matrix(A, _x, AD);
         } else {
             math_op<numeric_type>::mult_by_grad(k_param, A, AD);
         }

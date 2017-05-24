@@ -319,6 +319,7 @@ void test_array_opt(void)
 {
     // matrix mult
     {
+        logging::info("test strided mat mul");
         double w0[12] = {
             1, 2, 3, 4,
             5, 6, 7, 8,
@@ -346,7 +347,6 @@ void test_array_opt(void)
         ddf::matrix<double> AD(0,0);
         printf("A * D: %s\n", (A * D).to_string().c_str());
         matmul.mult_by_grad(0, A, AD);
-        // ddf::opt::mult_strided_matrix(A, D, AD);
         printf("AD: %s\n", AD.to_string().c_str());
 
         double b0[24] = {
@@ -365,6 +365,7 @@ void test_array_opt(void)
 
     // relu
     {
+        logging::info("test relu");
         ddf::relu<double> relu;
         double x0[4] = {1.0, 2.0, -3.0, 4.0}; // sample
         double b0[12] = {
