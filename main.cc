@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
         ddf::matrix<float> db1(0,0);
         
         ddf::vector<float> c(0);
-        float alpha = 0.03;
+        float alpha = 0.5;
         
         n_samples = 1000;
         

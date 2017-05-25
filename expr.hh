@@ -108,11 +108,7 @@ struct identity: math_expr<numeric_type> {
     }
 
     void grad(matrix<numeric_type> &m) {
-        m.resize(_size, _size);
-        m.fill(0);
-        for (int i = 0; i < _size; i++) {
-            m(i,i) = 1;
-        }
+        assert(("grad of identiy should be omitted for efficiency", false));
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -361,55 +357,6 @@ struct addition: math_expr<numeric_type> {
     shared_math_expr_ptr _b;
     vector<numeric_type> _x;
     matrix<numeric_type> _D_b;
-};
-
-// d (a * b)/dx = da/dx*b + db/dx*a
-template <typename numeric_type>
-struct multiplication: math_expr<numeric_type> {
-    typedef std::shared_ptr<math_expr<numeric_type> > shared_math_expr_ptr;
-
-    multiplication(math_expr<numeric_type> *a, math_expr<numeric_type> *b)
-        : math_expr<numeric_type>(expr_typeid::MULTIPLICATION),
-          _a(a), _b(b) {
-    }
-
-    math_expr<numeric_type> *derivative(const char *var) {
-        auto d_a = _a->derivative(var);
-        auto d_b = _b->derivative(var);
-        if (d_a && d_b) {
-            return new addition<numeric_type>(
-                new multiplication<numeric_type>(d_a, _b->clone()),
-                new multiplication<numeric_type>(d_b, _a->clone()));
-        } else if (d_a) {
-            return new multiplication<numeric_type>(d_a, _b->clone());
-        } else if (d_b) {
-            return new multiplication<numeric_type>(d_b, _a->clone());
-        } else {
-            return nullptr;
-        }
-    }
-
-    void eval(vector<numeric_type> &y) {
-        _a->eval(_x);
-        _b->eval(y);
-        y *= _x;
-    }
-
-    void grad(matrix<numeric_type> &m) {
-        assert(("grad of f * g is not implemented yet", false));
-    }
-
-    math_expr<numeric_type> *clone(void) const {
-        return new multiplication(_a->clone(), _b->clone());
-    }
-
-    std::string to_string() const {
-        return "(" + _a->to_string() + " * " + _b->to_string() + ")";
-    }    
-
-    shared_math_expr_ptr _a;
-    shared_math_expr_ptr _b;
-    vector<numeric_type> _x;
 };
 
 } // end namespace ddf
