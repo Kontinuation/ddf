@@ -75,6 +75,7 @@ void test_matmul(void)
 
 void test_softmax(void)
 {
+    logging::info("test softmax");
     double label[4] = { 0.0, 0.0, 1.0, 0.0 }; // 3rd class
     double w_data[4] = {1.0, 2.0, 3.0, 4.0};
     ddf::vector<double> w(4, w_data);
@@ -418,25 +419,58 @@ void test_relu(void)
 }
 
 void test_expr_visitor(void) {
-    ddf::variable<float> *var_w0 = new ddf::variable<float>("w0", ddf::vector<float>());
-    ddf::variable<float> *var_b0 = new ddf::variable<float>("b0", ddf::vector<float>());
-    ddf::variable<float> *var_w1 = new ddf::variable<float>("w1", ddf::vector<float>());
-    ddf::variable<float> *var_b1 = new ddf::variable<float>("b1", ddf::vector<float>());
-    ddf::variable<float> *var_x  = new ddf::variable<float>("x", ddf::vector<float>());
-    ddf::variable<float> *var_l  = new ddf::variable<float>("l", ddf::vector<float>());
+    const int dimension = 5;
+    const int n_classes = 2;
+    const int n_hidden = 3;
+    const int len_w0 = n_hidden * dimension;
+    const int len_b0 = n_hidden;
+    const int len_w1 = n_classes * n_hidden;
+    const int len_b1 = n_classes;
+    double w0[len_w0];
+    double b0[len_b0];
+    double w1[len_w1];
+    double b1[len_b1];
+    double x[dimension];
+    double l[n_classes];
+
+#define LENGTH(x) (sizeof(x) / sizeof(x[0]))
+    
+    ddf::variable<double> *var_w0 =
+        new ddf::variable<double>("w0", ddf::vector<double>(LENGTH(w0), w0));
+    ddf::variable<double> *var_b0 =
+        new ddf::variable<double>("b0", ddf::vector<double>(LENGTH(b0), b0));
+    ddf::variable<double> *var_w1 =
+        new ddf::variable<double>("w1", ddf::vector<double>(LENGTH(w1), w1));
+    ddf::variable<double> *var_b1 =
+        new ddf::variable<double>("b1", ddf::vector<double>(LENGTH(b1), b1));
+    ddf::variable<double> *var_x = 
+        new ddf::variable<double>("x", ddf::vector<double>(LENGTH(x), x));
+    ddf::variable<double> *var_l = 
+        new ddf::variable<double>("l", ddf::vector<double>(LENGTH(l), l));
+        
+    // initial value of hyper parameters
+    var_w0->value().fill_rand();
+    var_b0->value().fill_rand();
+    var_w1->value().fill_rand();
+    var_b1->value().fill_rand();
+
+    // initial value of input and target
+    var_x->value().fill_rand();
+    var_l->value().fill(0);
+    l[0] = 1.0;
 
     // predict: w1 * (relu(w0 * x + b0)) + b1
-    ddf::matrix_mult<float> matmul_0, matmul_1;
-    ddf::relu<float> relu_0;
-    ddf::math_expr<float> *predict =
-        new ddf::addition<float>(
-            new ddf::function_call<float>(
+    ddf::matrix_mult<double> matmul_0, matmul_1;
+    ddf::relu<double> relu_0;
+    ddf::math_expr<double> *predict =
+        new ddf::addition<double>(
+            new ddf::function_call<double>(
                 &matmul_1,
                 var_w1, 
-                new ddf::function_call<float>(
+                new ddf::function_call<double>(
                     &relu_0,
-                    new ddf::addition<float>(
-                        new ddf::function_call<float>(
+                    new ddf::addition<double>(
+                        new ddf::function_call<double>(
                             &matmul_0,
                             var_w0, 
                             var_x),
@@ -444,15 +478,54 @@ void test_expr_visitor(void) {
             var_b1);
 
     // loss: DS(predict, l)
-    ddf::softmax_cross_entropy_with_logits<float> DS;
-    auto loss = std::shared_ptr<ddf::math_expr<float> >(
-        new ddf::function_call<float>(&DS, 
+    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+        new ddf::function_call<double>(&DS, 
             predict, /* predict->clone() */
             var_l));
 
-    std::shared_ptr<ddf::math_expr<float> > loss_2(loss->clone());
+    std::shared_ptr<ddf::math_expr<double> > dloss_dw0(loss->derivative("w0"));
+    std::shared_ptr<ddf::math_expr<double> > dloss_db0(loss->derivative("b0"));
+    std::shared_ptr<ddf::math_expr<double> > dloss_dw1(loss->derivative("w1"));
+    std::shared_ptr<ddf::math_expr<double> > dloss_db1(loss->derivative("b1"));
 
-    ddf::collect_variable<float> visitor;
+    ddf::vector<double> loss_val;
+    loss->eval(loss_val);
+    auto &val = var_w1->value();
+    double delta = 1e-12;
+    for (int i = 0; i < val.size(); i++) {
+        ddf::vector<double> loss_val1;
+        double tmp = val[i];
+        val[i] += delta;
+        loss->eval(loss_val1);
+        double d = (loss_val1[0] - loss_val[0]) / delta;
+        val[i] = tmp;
+        printf("d[%d]: %f\n", i, d);
+    }
+
+    ddf::matrix<double> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
+    logging::info("finite diff D_dw0: %s", D_dw0.to_string().c_str());
+    dloss_dw0->grad(D_dw0);
+    logging::info("auto diff D_dw0: %s", D_dw0.to_string().c_str());
+
+    ddf::matrix<double> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
+    logging::info("finite diff D_dw1: %s", D_dw1.to_string().c_str());
+    dloss_dw1->grad(D_dw1);
+    logging::info("auto diff D_dw1: %s", D_dw1.to_string().c_str());
+
+    ddf::matrix<double> D_db0 = ddf::finite_diff(loss.get(), var_b0);;
+    logging::info("finite diff D_db0: %s", D_db0.to_string().c_str());
+    dloss_db0->grad(D_db0);
+    logging::info("auto diff D_db0: %s", D_db0.to_string().c_str());
+    
+    ddf::matrix<double> D_db1 = ddf::finite_diff(loss.get(), var_b1);;
+    logging::info("finite diff D_db1: %s", D_db1.to_string().c_str());
+    dloss_db1->grad(D_db1);
+    logging::info("auto idff D_db1: %s", D_db1.to_string().c_str());
+
+
+    std::shared_ptr<ddf::math_expr<double> > loss_2(loss->clone());
+    ddf::collect_variable<double> visitor;
     loss_2->apply(&visitor);
     for (auto &s: visitor.vars()) {
         logging::info("var: %s", s.c_str());

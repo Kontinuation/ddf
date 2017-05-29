@@ -8,5 +8,6 @@
 #include "op.hh"
 #include "expr.hh"
 #include "train.hh"
+#include "debugging.hh"
 
 #endif /* DEEP_DARK_FANTASY_H */

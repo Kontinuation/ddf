@@ -296,6 +296,8 @@ struct dfunction_call: math_expr<numeric_type> {
         this->prepare();
 
         if (_d_arg->type != expr_typeid::IDENTITY) {
+
+#ifndef DISABLE_FAST_MULT_GRAD
             // chain rule: D_f * D_g, we will look for oppotunities for
             // optimization rather than directly calculating the matrix
             // multiplication
@@ -324,9 +326,14 @@ struct dfunction_call: math_expr<numeric_type> {
                     // fallback case
                     _op->Df(_k_param, _D_f);
                     _d_arg->grad(_D_g);
-                    _D_f.mult(_D_g, m); // m = _D_f * _D_g;            
+                    _D_f.mult(_D_g, m); // m = _D_f * _D_g;
                 }
             }
+#else
+            _op->Df(_k_param, _D_f);
+            _d_arg->grad(_D_g);
+            _D_f.mult(_D_g, m); // m = _D_f * _D_g;
+#endif
         } else {
             _op->Df(_k_param, m);
         }
