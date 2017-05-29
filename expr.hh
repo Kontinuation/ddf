@@ -50,7 +50,7 @@ class math_expr {
 public:
     math_expr(expr_typeid type) : type(type) { }
     virtual ~math_expr(void) = default;
-    virtual math_expr *derivative(const char *var) = 0;
+    virtual math_expr *derivative(const std::string &var) = 0;
     virtual math_expr *clone(void) const = 0;
     virtual std::string to_string() const = 0;
     virtual void apply(math_expr_visitor<_numeric_type> *visitor) = 0;
@@ -86,7 +86,7 @@ struct constant: math_expr<numeric_type> {
         : math_expr<numeric_type>(expr_typeid::CONSTANT), _v(v) {
     }
 
-    math_expr<numeric_type> *derivative(const char *) {
+    math_expr<numeric_type> *derivative(const std::string &) {
         return nullptr;
     }
 
@@ -116,7 +116,7 @@ struct identity: math_expr<numeric_type> {
           _size(size) {
     }
 
-    math_expr<numeric_type> *derivative(const char *) {
+    math_expr<numeric_type> *derivative(const std::string &) {
         return nullptr;
     }
 
@@ -159,7 +159,7 @@ struct variable: math_expr<numeric_type> {
         _val = val;
     }
 
-    math_expr<numeric_type> *derivative(const char *var) {
+    math_expr<numeric_type> *derivative(const std::string &var) {
         if (!_var.compare(var)) {
             return new identity<numeric_type>(_val.size());
         } else {
@@ -213,7 +213,7 @@ struct function_call: math_expr<numeric_type> {
         _xs.resize(args.size());
     }
 
-    math_expr<numeric_type> *derivative(const char *var) {
+    math_expr<numeric_type> *derivative(const std::string &var) {
         math_expr<numeric_type> *d_arg = nullptr;
         size_t n_args = _args.size();
         int k_param = -1;
@@ -283,7 +283,7 @@ struct dfunction_call: math_expr<numeric_type> {
         _xs.resize(args.size());
     }
 
-    math_expr<numeric_type> *derivative(const char *var) {
+    math_expr<numeric_type> *derivative(const std::string &var) {
         assert(("second-order derivatives could not be evaluated", false));
         return nullptr;
     }
@@ -389,7 +389,7 @@ struct addition: math_expr<numeric_type> {
           _a(a), _b(b) {
     }
 
-    math_expr<numeric_type> *derivative(const char *var) {
+    math_expr<numeric_type> *derivative(const std::string &var) {
         auto d_a = _a->derivative(var);
         auto d_b = _b->derivative(var);
 

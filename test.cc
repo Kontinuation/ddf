@@ -528,7 +528,7 @@ void test_expr_visitor(void) {
     ddf::collect_variable<double> visitor;
     loss_2->apply(&visitor);
     for (auto &s: visitor.vars()) {
-        logging::info("var: %s", s.c_str());
+        logging::info("var: %s", s.first.c_str());
     }
 }
 

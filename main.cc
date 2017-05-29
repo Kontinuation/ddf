@@ -137,6 +137,49 @@ int main(int argc, char *argv[]) {
         }
         logging::info("initial loss: %f", sum_loss);
 
+#if 1
+        // using train.hh
+        ddf::matrix<float> xs(n_samples, dimension, fea);
+        ddf::matrix<float> ls(n_samples, n_classes);
+        ls.fill(0);
+        for (int k = 0; k < n_samples; k++) {
+            ls(k, label[k]) = 1;
+        }
+        
+        ddf::optimization<float> optimizer;
+        std::map<std::string, ddf::matrix<float> > feed_dict = {
+            {"x", xs },
+            {"l", ls }
+        };
+        optimizer.minimize(loss.get(), &feed_dict);
+        optimizer.dbg_dump();
+        
+        for (int iter = 0; iter < 10; iter++) {
+            clock_t start = clock();
+            optimizer.step(1);
+            float sum_loss = optimizer.loss();
+            clock_t end = clock();
+            logging::info("iter: %d, loss: %f, cost: %f sec",
+                iter, sum_loss,
+                (double)(end - start) / CLOCKS_PER_SEC);
+        }
+#endif
+
+        var_w0->value().fill_rand();
+        var_b0->value().fill_rand();
+        var_w1->value().fill_rand();
+        var_b1->value().fill_rand();
+
+        sum_loss = 0;
+        for (int k = 0; k < n_samples; k++) {
+            std::copy_n(fea + k * dimension, dimension, x);
+            std::fill_n(l, n_classes, 0);
+            l[label[k]] = 1;
+            loss->eval(c);
+            sum_loss += c[0];
+        }
+        logging::info("initial loss: %f", sum_loss);
+
         for (int iter = 0; iter < 10; iter++) {
             clock_t start = clock();
             sum_dw0.fill(0);
@@ -154,8 +197,8 @@ int main(int argc, char *argv[]) {
                 l[label[k]] = 1;
 
                 // gradient descent
-                dw0.fill(0); db0.fill(0);
-                dw1.fill(0); db1.fill(0);
+                // dw0.fill(0); db0.fill(0);
+                // dw1.fill(0); db1.fill(0);
                 dloss_dw0->grad(dw0); dloss_db0->grad(db0);
                 dloss_dw1->grad(dw1); dloss_db1->grad(db1);
                 sum_dw0 += ddf::vector<float>(len_w0, dw0.raw_data());
