@@ -88,11 +88,16 @@ int main(int argc, char *argv[]) {
 
         // loss: DS(predict, l)
         ddf::softmax_cross_entropy_with_logits<float> DS;
-        ddf::math_expr<float> *loss =
+        auto loss = std::shared_ptr<ddf::math_expr<float> >(
             new ddf::function_call<float>(&DS, 
                 predict, /* predict->clone() */
-                var_l);
+                var_l));
 
+        // auto loss = std::make_shared<ddf::function_call<float> > (
+        //     &DS, 
+        //     predict, /* predict->clone() */
+        //     var_l);
+                 
         ddf::math_expr<float> *dloss_dw0 = loss->derivative("w0");
         ddf::math_expr<float> *dloss_db0 = loss->derivative("b0");
         ddf::math_expr<float> *dloss_dw1 = loss->derivative("w1");

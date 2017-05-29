@@ -417,6 +417,48 @@ void test_relu(void)
         D_rl.to_string().c_str());
 }
 
+void test_expr_visitor(void) {
+    ddf::variable<float> *var_w0 = new ddf::variable<float>("w0", ddf::vector<float>());
+    ddf::variable<float> *var_b0 = new ddf::variable<float>("b0", ddf::vector<float>());
+    ddf::variable<float> *var_w1 = new ddf::variable<float>("w1", ddf::vector<float>());
+    ddf::variable<float> *var_b1 = new ddf::variable<float>("b1", ddf::vector<float>());
+    ddf::variable<float> *var_x  = new ddf::variable<float>("x", ddf::vector<float>());
+    ddf::variable<float> *var_l  = new ddf::variable<float>("l", ddf::vector<float>());
+
+    // predict: w1 * (relu(w0 * x + b0)) + b1
+    ddf::matrix_mult<float> matmul_0, matmul_1;
+    ddf::relu<float> relu_0;
+    ddf::math_expr<float> *predict =
+        new ddf::addition<float>(
+            new ddf::function_call<float>(
+                &matmul_1,
+                var_w1, 
+                new ddf::function_call<float>(
+                    &relu_0,
+                    new ddf::addition<float>(
+                        new ddf::function_call<float>(
+                            &matmul_0,
+                            var_w0, 
+                            var_x),
+                        var_b0))),
+            var_b1);
+
+    // loss: DS(predict, l)
+    ddf::softmax_cross_entropy_with_logits<float> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<float> >(
+        new ddf::function_call<float>(&DS, 
+            predict, /* predict->clone() */
+            var_l));
+
+    std::shared_ptr<ddf::math_expr<float> > loss_2(loss->clone());
+
+    ddf::collect_variable<float> visitor;
+    loss_2->apply(&visitor);
+    for (auto &s: visitor.vars()) {
+        logging::info("var: %s", s.c_str());
+    }
+}
+
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
@@ -427,5 +469,6 @@ int main(int argc, char *argv[])
     test_relu();
     test_expr();
     test_fg();
+    test_expr_visitor();
     return 0;
 }

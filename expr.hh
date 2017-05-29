@@ -24,6 +24,27 @@ enum class expr_typeid {
     MULTIPLICATION,
 };
 
+// forward declarations for recursive datatypes
+template <typename numeric_type> struct constant;
+template <typename numeric_type> struct variable;
+template <typename numeric_type> struct identity;
+template <typename numeric_type> struct function_call;
+template <typename numeric_type> struct dfunction_call;
+template <typename numeric_type> struct addition;
+
+// visitor class for applying operation on sub expressions
+template <typename numeric_type>
+class math_expr_visitor {
+public:
+    virtual ~math_expr_visitor(void) = default;
+    virtual void apply(constant<numeric_type> *expr) = 0;
+    virtual void apply(variable<numeric_type> *expr) = 0;
+    virtual void apply(identity<numeric_type> *expr) = 0;
+    virtual void apply(function_call<numeric_type> *expr) = 0;
+    virtual void apply(dfunction_call<numeric_type> *expr) = 0;
+    virtual void apply(addition<numeric_type> *expr) = 0;
+};
+
 template <typename _numeric_type>
 class math_expr {
 public:
@@ -32,6 +53,7 @@ public:
     virtual math_expr *derivative(const char *var) = 0;
     virtual math_expr *clone(void) const = 0;
     virtual std::string to_string() const = 0;
+    virtual void apply(math_expr_visitor<_numeric_type> *visitor) = 0;
     virtual void eval(vector<_numeric_type> &y) = 0;
     virtual void grad(matrix<_numeric_type> &m) {
         assert(("cannot calculate grad on this expr", false));
@@ -57,15 +79,6 @@ clone_exprs(const std::vector<std::shared_ptr<math_expr<numeric_type> > > &exprs
     return ret;
 }
 
-// forward declarations for recursive datatypes
-template <typename numeric_type> struct constant;
-template <typename numeric_type> struct variable;
-template <typename numeric_type> struct identity;
-template <typename numeric_type> struct function_call;
-template <typename numeric_type> struct dfunction_call;
-template <typename numeric_type> struct addition;
-template <typename numeric_type> struct multiplication;
-
 // dc/dx = 0
 template <typename numeric_type>
 struct constant: math_expr<numeric_type> {
@@ -87,6 +100,10 @@ struct constant: math_expr<numeric_type> {
 
     std::string to_string() const {
         return _v.to_string();
+    }
+
+    void apply(math_expr_visitor<numeric_type> *visitor) {
+        visitor->apply(this);
     }
 
     vector<numeric_type> _v;
@@ -117,6 +134,10 @@ struct identity: math_expr<numeric_type> {
 
     std::string to_string() const {
         return "I";
+    }
+
+    void apply(math_expr_visitor<numeric_type> *visitor) {
+        visitor->apply(this);
     }
 
     int _size;
@@ -156,6 +177,10 @@ struct variable: math_expr<numeric_type> {
 
     std::string to_string() const {
         return _var;
+    }
+
+    void apply(math_expr_visitor<numeric_type> *visitor) {
+        visitor->apply(this);
     }
 
     std::string _var;
@@ -234,6 +259,10 @@ struct function_call: math_expr<numeric_type> {
             if (k != n_args - 1) str_args += ",";
         }
         return _op->name() + "(" + str_args + ")";
+    }
+
+    void apply(math_expr_visitor<numeric_type> *visitor) {
+        visitor->apply(this);
     }
 
     math_op<numeric_type> *_op;
@@ -329,6 +358,10 @@ struct dfunction_call: math_expr<numeric_type> {
         }
         _op->ready();
     }
+
+    void apply(math_expr_visitor<numeric_type> *visitor) {
+        visitor->apply(this);
+    }
     
     math_op<numeric_type> *_op;
     std::vector<shared_math_expr_ptr> _args;
@@ -382,6 +415,10 @@ struct addition: math_expr<numeric_type> {
 
     std::string to_string() const {
         return "(" + _a->to_string() + " + " + _b->to_string() + ")";
+    }
+
+    void apply(math_expr_visitor<numeric_type> *visitor) {
+        visitor->apply(this);
     }
 
     shared_math_expr_ptr _a;

@@ -17,6 +17,46 @@
 namespace ddf {
 
 template <typename numeric_type>
+class collect_variable : public math_expr_visitor<numeric_type> {
+public:
+    virtual void apply(constant<numeric_type> *expr) {
+        // ignore
+    }
+    virtual void apply(identity<numeric_type> *expr) {
+        // ignore
+    }
+    
+    virtual void apply(variable<numeric_type> *expr) {
+        _vars.insert(expr->_var);
+    }
+    
+    virtual void apply(function_call<numeric_type> *expr) {
+        for (auto &arg: expr->_args) {
+            arg->apply(this);
+        }
+    }
+    
+    virtual void apply(dfunction_call<numeric_type> *expr) {
+        expr->_d_arg->apply(this);
+        for (auto &arg: expr->_args) {
+            arg->apply(this);
+        }
+    }
+    
+    virtual void apply(addition<numeric_type> *expr) {
+        expr->_a->apply(this);
+        expr->_b->apply(this);
+    }
+
+    std::set<std::string> &vars(void) {
+        return _vars;
+    }
+    
+private:
+    std::set<std::string> _vars;
+};
+
+template <typename numeric_type>
 class optimization {
 public:
     typedef matrix<numeric_type> matrix_type;
@@ -36,8 +76,7 @@ public:
 
         // collect variable nodes
         std::set<std::string> vars;
-        
-        
+
     }
 
     // caluclate current training loss
