@@ -6,6 +6,7 @@
 // provide some building blocks (ops) for constructing deep networds.
 
 #include "nd_array.hh"
+#include <vector>
 #include <cmath>
 
 namespace ddf {
@@ -20,10 +21,9 @@ public:
 #define assert_param_dim(k_param)               \
     assert(("parameter index out of bound", (k_param) < this->_n_params))
     
-    math_op(const std::string &name, int n_params, int mult_opt = 0, 
-        int mult_by_opt = 0)
-        : _name(name), _n_params(n_params), _mult_opt(mult_opt),
-          _mult_by_opt(mult_by_opt) {
+    math_op(const std::string &name, int n_params, 
+        const std::vector<std::pair<int, int> > &opt_level = {})
+        : _name(name), _n_params(n_params), _opt_level(opt_level) {
     }
     virtual ~math_op(void) = default;
 
@@ -139,16 +139,20 @@ public:
 
     std::string name() const { return _name; }
     int n_params() const { return n_params; }
-    int mult_opt_level(void) const { return _mult_opt; }
-    int mult_by_opt_level(void) const { return _mult_by_opt; }
+    int mult_opt_level(int k_param) const {
+        return _opt_level.size() > k_param? _opt_level[k_param].first: 0;
+    }
+    int mult_by_opt_level(int k_param) const {
+        return _opt_level.size() > k_param? _opt_level[k_param].second: 0;
+    }
 
 protected:
     std::string _name;
     int _n_params;
 
-    // optimization level for jacobian matrix multiplications
-    int _mult_opt;
-    int _mult_by_opt;
+    // optimization level for jacobian matrix multiplications, in form like: {
+    //     [0]: { A * D0, D0 * B }, [1]: { A * D1, D1 * B }, ...  }
+    std::vector<std::pair<int, int> > _opt_level;
 };
 
 // matrix variable multiplied by vector
@@ -161,7 +165,10 @@ public:
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
 
-    matrix_mult(void): math_op<numeric_type>("matmul", 2, 1, 2) {
+    matrix_mult(void): math_op<numeric_type>("matmul", 2, {
+            {3, 3},             // A * Dw, Dw * B
+            {1, 1}              // A * Dx, Dx * B
+        }) {
     }
 
     void prepare(int k_param, const vector_type &v) {
@@ -223,7 +230,8 @@ public:
         if (k_param == 0) {
             opt::mult_by_strided_matrix(B, _w, DB);
         } else {
-            math_op<numeric_type>::mult_grad(k_param, B, DB);
+            matrix_type D = matrix_view_of(_w);
+            D.mult(B, DB);
         }
     }
 
@@ -231,7 +239,8 @@ public:
         if (k_param == 0) {
             opt::mult_strided_matrix(A, _x, AD);
         } else {
-            math_op<numeric_type>::mult_by_grad(k_param, A, AD);
+            matrix_type D = matrix_view_of(_w);
+            A.mult(D, AD);
         }
     }
 
@@ -322,7 +331,9 @@ public:
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
     
-    relu(): math_op<numeric_type>("relu", 1) {
+    relu(): math_op<numeric_type>("relu", 1, {
+            {2, 2},             // A * Dx, Dx * B
+        }) {
     }
 
     void prepare(int k_param, const vector_type &v) {

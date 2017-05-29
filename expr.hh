@@ -264,19 +264,40 @@ struct dfunction_call: math_expr<numeric_type> {
     }
 
     void grad(matrix<numeric_type> &m) {
-        // evaluate args for op
-        size_t n_args = _args.size();
-        for (size_t k = 0; k < n_args; k++) {
-            _args[k]->eval(_xs[k]);
-            _op->prepare(k, _xs[k]);
-        }
-        _op->ready();
+        this->prepare();
 
         if (_d_arg->type != expr_typeid::IDENTITY) {
-            // chain rule
-            _op->Df(_k_param, _D_f);
-            _d_arg->grad(_D_g);
-            _D_f.mult(_D_g, m); // m = _D_f * _D_g;            
+            // chain rule: D_f * D_g, we will look for oppotunities for
+            // optimization rather than directly calculating the matrix
+            // multiplication
+            
+            int mult_opt = _op->mult_opt_level(_k_param);
+            int mult_by_opt = 0;
+            auto d_arg = static_cast<dfunction_call<numeric_type> *>(_d_arg.get());
+            if (_d_arg->type == expr_typeid::DFUNCTION_CALL) {
+                if (_d_arg->type == expr_typeid::DFUNCTION_CALL) {
+                    if (d_arg->_d_arg->type == expr_typeid::IDENTITY) {
+                        mult_by_opt = d_arg->_op->mult_by_opt_level(d_arg->_k_param);
+                    }
+                }
+
+                if (mult_opt > 0 || mult_by_opt > 0) {
+                    // optimized case
+                    if (mult_opt > mult_by_opt) {
+                        _d_arg->grad(_D_g);
+                        _op->mult_grad(_k_param, _D_g, m);
+                    } else {
+                        _op->Df(_k_param, _D_f);
+                        d_arg->prepare();
+                        d_arg->_op->mult_by_grad(d_arg->_k_param, _D_f, m);
+                    }
+                } else {
+                    // fallback case
+                    _op->Df(_k_param, _D_f);
+                    _d_arg->grad(_D_g);
+                    _D_f.mult(_D_g, m); // m = _D_f * _D_g;            
+                }
+            }
         } else {
             _op->Df(_k_param, m);
         }
@@ -297,6 +318,16 @@ struct dfunction_call: math_expr<numeric_type> {
         return ("D_" + std::to_string(_k_param) +  " " +  
             std::string(_op->name())) + 
             "(" + str_args + ") " + _d_arg->to_string();
+    }
+
+    // evaluate args for grad
+    void prepare(void) {
+        size_t n_args = _args.size();
+        for (size_t k = 0; k < n_args; k++) {
+            _args[k]->eval(_xs[k]);
+            _op->prepare(k, _xs[k]);
+        }
+        _op->ready();
     }
     
     math_op<numeric_type> *_op;

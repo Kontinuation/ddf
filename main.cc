@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
         }
         logging::info("initial loss: %f", sum_loss);
 
-        for (int iter = 0; iter < 2000; iter++) {
+        for (int iter = 0; iter < 10; iter++) {
             clock_t start = clock();
             sum_dw0.fill(0);
             sum_db0.fill(0);
