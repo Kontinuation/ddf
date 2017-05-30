@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
     const char *dataset_file = argv[2];
     const char *model_file = argv[3];
     if (!strcmp(cmd, "train")) {
+        // -- read training data from file --
         dataset d_train(dataset_file);
         float *fea = d_train.features();
         int *label = d_train.labels();
@@ -36,6 +37,7 @@ int main(int argc, char *argv[]) {
         int n_samples = d_train.n_samples();
         int n_classes = d_train.n_classes();
 
+        // -- prepare deep model --
         int n_hidden = 20;
         int len_w0 = n_hidden * dimension;
         int len_b0 = n_hidden;
@@ -49,13 +51,17 @@ int main(int argc, char *argv[]) {
         float *l = new float[n_classes];
 
         ddf::variable<float> *var_w0 =
-            new ddf::variable<float>("w0", ddf::vector<float>(len_w0, w0, ddf::array_owns_buffer));
+            new ddf::variable<float>("w0", 
+                ddf::vector<float>(len_w0, w0, ddf::array_owns_buffer));
         ddf::variable<float> *var_b0 =
-            new ddf::variable<float>("b0", ddf::vector<float>(len_b0, b0, ddf::array_owns_buffer));
+            new ddf::variable<float>("b0", 
+                ddf::vector<float>(len_b0, b0, ddf::array_owns_buffer));
         ddf::variable<float> *var_w1 =
-            new ddf::variable<float>("w1", ddf::vector<float>(len_w1, w1, ddf::array_owns_buffer));
+            new ddf::variable<float>("w1", 
+                ddf::vector<float>(len_w1, w1, ddf::array_owns_buffer));
         ddf::variable<float> *var_b1 =
-            new ddf::variable<float>("b1", ddf::vector<float>(len_b1, b1, ddf::array_owns_buffer));
+            new ddf::variable<float>("b1", 
+                ddf::vector<float>(len_b1, b1, ddf::array_owns_buffer));
 
         // initial value of hyper parameters
         var_w0->value().fill_rand();
@@ -64,9 +70,11 @@ int main(int argc, char *argv[]) {
         var_b1->value().fill_rand();
         
         ddf::variable<float> *var_x = 
-            new ddf::variable<float>("x", ddf::vector<float>(dimension, x, ddf::array_owns_buffer));
+            new ddf::variable<float>("x", 
+                ddf::vector<float>(dimension, x, ddf::array_owns_buffer));
         ddf::variable<float> *var_l = 
-            new ddf::variable<float>("l", ddf::vector<float>(n_classes, l, ddf::array_owns_buffer));
+            new ddf::variable<float>("l",
+                ddf::vector<float>(n_classes, l, ddf::array_owns_buffer));
 
         // predict: w1 * (relu(w0 * x + b0)) + b1
         ddf::matrix_mult<float> matmul_0, matmul_1;
@@ -92,16 +100,11 @@ int main(int argc, char *argv[]) {
             new ddf::function_call<float>(&DS, 
                 predict, /* predict->clone() */
                 var_l));
-
-        // auto loss = std::make_shared<ddf::function_call<float> > (
-        //     &DS, 
-        //     predict, /* predict->clone() */
-        //     var_l);
         
         // truncate the training data for faster shakedown run
         n_samples = 1000;
                 
-        // train this model using optimizer defined in train.hh
+        // -- train this model using optimizer defined in train.hh --
         
         // prepare feeded data 
         ddf::matrix<float> xs(n_samples, dimension, fea);
@@ -135,7 +138,7 @@ int main(int argc, char *argv[]) {
                 (double)(end - start) / CLOCKS_PER_SEC);
         }
 
-        // TODO: save trained model to file
+        // TODO: -- save trained model to file --
     }
     else if (!strcmp(cmd, "predict")) {
         dataset d_test(dataset_file);
