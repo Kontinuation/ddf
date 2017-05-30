@@ -46,24 +46,24 @@ public:
 
     virtual void apply(constant<numeric_type> *expr) {
         _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [lable=\"const "
+        _ofs << "  addr_" << expr << " [label=\"const "
              << expr->to_string() << "\"];\n";
     }
     virtual void apply(identity<numeric_type> *expr) {
         _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [lable=\"identity "
+        _ofs << "  addr_" << expr << " [label=\"identity "
              << expr->to_string() << "\"];\n";
     }
     
     virtual void apply(variable<numeric_type> *expr) {
         _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [lable=\"var "
+        _ofs << "  addr_" << expr << " [label=\"var "
              << expr->to_string() << "\"];\n";
     }
     
     virtual void apply(function_call<numeric_type> *expr) {
         _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [lable=\"func "
+        _ofs << "  addr_" << expr << " [label=\"func "
              << expr->to_string() << "\"];\n";
         for (auto &arg: expr->_args) {
             _ofs << "  addr_" << expr
@@ -76,7 +76,7 @@ public:
     
     virtual void apply(dfunction_call<numeric_type> *expr) {
         _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [lable=\"dfunc "
+        _ofs << "  addr_" << expr << " [label=\"dfunc "
              << expr->to_string() << "\"];\n";
         _ofs << "  addr_" << expr
              << " -> addr_" << expr->_d_arg << ";\n";
@@ -94,7 +94,7 @@ public:
     
     virtual void apply(addition<numeric_type> *expr) {
         _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [lable=\"add "
+        _ofs << "  addr_" << expr << " [label=\"add "
              << expr->to_string() << "\"];\n";
         _ofs << "  addr_" << expr
              << " -> addr_" << expr->_a.get() << ";\n";
