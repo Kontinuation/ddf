@@ -264,13 +264,15 @@ public:
         assert_param_dim(k_param);
         if (k_param == 0) {
             _w = v;
+            numeric_type shift = *std::max_element(
+                v.raw_data(), v.raw_data() + v.size());
             
             // precalculate exp(w) and multiplier
             numeric_type divider = 0;
             int n = _w.size();            
             _exp_w.resize(n);
             for (int k = 0; k < n; k++) {
-                numeric_type exp_wk = exp(_w[k]);
+                numeric_type exp_wk = exp(_w[k] - shift);
                 _exp_w[k] = exp_wk;
                 divider += exp_wk;
             }

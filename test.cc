@@ -418,35 +418,36 @@ void test_relu(void)
         D_rl.to_string().c_str());
 }
 
+template <typename numeric_type>
 void test_expr_visitor(void) {
-    const int dimension = 5;
-    const int n_classes = 2;
+    const int dimension = 8;
+    const int n_classes = 4;
     const int n_hidden = 3;
     const int len_w0 = n_hidden * dimension;
     const int len_b0 = n_hidden;
     const int len_w1 = n_classes * n_hidden;
     const int len_b1 = n_classes;
-    double w0[len_w0];
-    double b0[len_b0];
-    double w1[len_w1];
-    double b1[len_b1];
-    double x[dimension];
-    double l[n_classes];
+    numeric_type w0[len_w0];
+    numeric_type b0[len_b0];
+    numeric_type w1[len_w1];
+    numeric_type b1[len_b1];
+    numeric_type x[dimension];
+    numeric_type l[n_classes];
 
 #define LENGTH(x) (sizeof(x) / sizeof(x[0]))
     
-    ddf::variable<double> *var_w0 =
-        new ddf::variable<double>("w0", ddf::vector<double>(LENGTH(w0), w0));
-    ddf::variable<double> *var_b0 =
-        new ddf::variable<double>("b0", ddf::vector<double>(LENGTH(b0), b0));
-    ddf::variable<double> *var_w1 =
-        new ddf::variable<double>("w1", ddf::vector<double>(LENGTH(w1), w1));
-    ddf::variable<double> *var_b1 =
-        new ddf::variable<double>("b1", ddf::vector<double>(LENGTH(b1), b1));
-    ddf::variable<double> *var_x = 
-        new ddf::variable<double>("x", ddf::vector<double>(LENGTH(x), x));
-    ddf::variable<double> *var_l = 
-        new ddf::variable<double>("l", ddf::vector<double>(LENGTH(l), l));
+    ddf::variable<numeric_type> *var_w0 =
+        new ddf::variable<numeric_type>("w0", ddf::vector<numeric_type>(LENGTH(w0), w0));
+    ddf::variable<numeric_type> *var_b0 =
+        new ddf::variable<numeric_type>("b0", ddf::vector<numeric_type>(LENGTH(b0), b0));
+    ddf::variable<numeric_type> *var_w1 =
+        new ddf::variable<numeric_type>("w1", ddf::vector<numeric_type>(LENGTH(w1), w1));
+    ddf::variable<numeric_type> *var_b1 =
+        new ddf::variable<numeric_type>("b1", ddf::vector<numeric_type>(LENGTH(b1), b1));
+    ddf::variable<numeric_type> *var_x = 
+        new ddf::variable<numeric_type>("x", ddf::vector<numeric_type>(LENGTH(x), x));
+    ddf::variable<numeric_type> *var_l = 
+        new ddf::variable<numeric_type>("l", ddf::vector<numeric_type>(LENGTH(l), l));
         
     // initial value of hyper parameters
     var_w0->value().fill_rand();
@@ -460,17 +461,17 @@ void test_expr_visitor(void) {
     l[0] = 1.0;
 
     // predict: w1 * (relu(w0 * x + b0)) + b1
-    ddf::matrix_mult<double> matmul_0, matmul_1;
-    ddf::relu<double> relu_0;
-    ddf::math_expr<double> *predict =
-        new ddf::addition<double>(
-            new ddf::function_call<double>(
+    ddf::matrix_mult<numeric_type> matmul_0, matmul_1;
+    ddf::relu<numeric_type> relu_0;
+    ddf::math_expr<numeric_type> *predict =
+        new ddf::addition<numeric_type>(
+            new ddf::function_call<numeric_type>(
                 &matmul_1,
                 var_w1, 
-                new ddf::function_call<double>(
+                new ddf::function_call<numeric_type>(
                     &relu_0,
-                    new ddf::addition<double>(
-                        new ddf::function_call<double>(
+                    new ddf::addition<numeric_type>(
+                        new ddf::function_call<numeric_type>(
                             &matmul_0,
                             var_w0, 
                             var_x),
@@ -478,46 +479,46 @@ void test_expr_visitor(void) {
             var_b1);
 
     // loss: DS(predict, l)
-    ddf::softmax_cross_entropy_with_logits<double> DS;
-    auto loss = std::shared_ptr<ddf::math_expr<double> >(
-        new ddf::function_call<double>(&DS, 
+    ddf::softmax_cross_entropy_with_logits<numeric_type> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+        new ddf::function_call<numeric_type>(&DS, 
             predict, /* predict->clone() */
             var_l));
 
-    std::shared_ptr<ddf::math_expr<double> > dloss_dw0(loss->derivative("w0"));
-    std::shared_ptr<ddf::math_expr<double> > dloss_db0(loss->derivative("b0"));
-    std::shared_ptr<ddf::math_expr<double> > dloss_dw1(loss->derivative("w1"));
-    std::shared_ptr<ddf::math_expr<double> > dloss_db1(loss->derivative("b1"));
+    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_dw0(loss->derivative("w0"));
+    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_db0(loss->derivative("b0"));
+    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_dw1(loss->derivative("w1"));
+    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_db1(loss->derivative("b1"));
 
-    ddf::matrix<double> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
+    ddf::matrix<numeric_type> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
     logging::info("finite diff D_dw0: %s", D_dw0.to_string().c_str());
     dloss_dw0->grad(D_dw0);
     logging::info("auto diff D_dw0: %s", D_dw0.to_string().c_str());
 
-    ddf::matrix<double> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
+    ddf::matrix<numeric_type> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
     logging::info("finite diff D_dw1: %s", D_dw1.to_string().c_str());
     dloss_dw1->grad(D_dw1);
     logging::info("auto diff D_dw1: %s", D_dw1.to_string().c_str());
 
-    ddf::matrix<double> D_db0 = ddf::finite_diff(loss.get(), var_b0);;
+    ddf::matrix<numeric_type> D_db0 = ddf::finite_diff(loss.get(), var_b0);
     logging::info("finite diff D_db0: %s", D_db0.to_string().c_str());
     dloss_db0->grad(D_db0);
     logging::info("auto diff D_db0: %s", D_db0.to_string().c_str());
     
-    ddf::matrix<double> D_db1 = ddf::finite_diff(loss.get(), var_b1);;
+    ddf::matrix<numeric_type> D_db1 = ddf::finite_diff(loss.get(), var_b1);
     logging::info("finite diff D_db1: %s", D_db1.to_string().c_str());
     dloss_db1->grad(D_db1);
     logging::info("auto diff D_db1: %s", D_db1.to_string().c_str());
 
-    ddf::dump_expr_as_dotfile<double> dump_loss("loss.dot");
+    ddf::dump_expr_as_dotfile<numeric_type> dump_loss("loss.dot");
     loss->apply(&dump_loss);
-    ddf::dump_expr_as_dotfile<double> dump_dw0("dw0.dot");
+    ddf::dump_expr_as_dotfile<numeric_type> dump_dw0("dw0.dot");
     dloss_dw0->apply(&dump_dw0);
-    ddf::dump_expr_as_dotfile<double> dump_dw1("dw1.dot");
+    ddf::dump_expr_as_dotfile<numeric_type> dump_dw1("dw1.dot");
     dloss_dw1->apply(&dump_dw1);
 
-    std::shared_ptr<ddf::math_expr<double> > loss_2(loss->clone());
-    ddf::collect_variable<double> visitor;
+    std::shared_ptr<ddf::math_expr<numeric_type> > loss_2(loss->clone());
+    ddf::collect_variable<numeric_type> visitor;
     loss_2->apply(&visitor);
     for (auto &s: visitor.vars()) {
         logging::info("var: %s", s.first.c_str());
@@ -534,6 +535,7 @@ int main(int argc, char *argv[])
     test_relu();
     test_expr();
     test_fg();
-    test_expr_visitor();
+    test_expr_visitor<float>();
+    test_expr_visitor<double>();
     return 0;
 }
