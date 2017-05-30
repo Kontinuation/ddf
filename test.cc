@@ -509,6 +509,12 @@ void test_expr_visitor(void) {
     dloss_db1->grad(D_db1);
     logging::info("auto diff D_db1: %s", D_db1.to_string().c_str());
 
+    ddf::dump_expr_as_dotfile<double> dump_loss("loss.dot");
+    loss->apply(&dump_loss);
+    ddf::dump_expr_as_dotfile<double> dump_dw0("dw0.dot");
+    dloss_dw0->apply(&dump_dw0);
+    ddf::dump_expr_as_dotfile<double> dump_dw1("dw1.dot");
+    dloss_dw1->apply(&dump_dw1);
 
     std::shared_ptr<ddf::math_expr<double> > loss_2(loss->clone());
     ddf::collect_variable<double> visitor;
