@@ -140,10 +140,10 @@ public:
     std::string name() const { return _name; }
     int n_params() const { return n_params; }
     int mult_opt_level(int k_param) const {
-        return _opt_level.size() > k_param? _opt_level[k_param].first: 0;
+        return (int) _opt_level.size() > k_param? _opt_level[k_param].first: 0;
     }
     int mult_by_opt_level(int k_param) const {
-        return _opt_level.size() > k_param? _opt_level[k_param].second: 0;
+        return (int) _opt_level.size() > k_param? _opt_level[k_param].second: 0;
     }
 
 protected:
