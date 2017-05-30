@@ -17,6 +17,11 @@
 
 namespace ddf {
 
+enum buffer_ownership {
+    array_does_not_own_buffer = 0,
+    array_owns_buffer = 1,
+};
+
 // multi dimensional array where each element is of type _T_numeric and the
 // array has _n_dim dimensions
 template <typename _numeric_type, int _n_dim>
@@ -25,7 +30,8 @@ struct nd_array_base {
     static const int n_dim = _n_dim;
 
     explicit nd_array_base(std::initializer_list<int> s,
-                      numeric_type *data = nullptr, bool owned = false) {
+                      numeric_type *data = nullptr, 
+                      buffer_ownership owned = array_does_not_own_buffer) {
         assert(("number of dimensions should match with array shape",
                 s.size() == n_dim));
         int shape[n_dim];
@@ -34,7 +40,7 @@ struct nd_array_base {
     }
 
     explicit nd_array_base(const int *shape, numeric_type *data = nullptr,
-                      bool owned = false) {
+                      buffer_ownership owned = array_does_not_own_buffer) {
         construct(shape, data, owned);
     }
 
@@ -45,7 +51,7 @@ struct nd_array_base {
     // constructing nd_array_base object from scratch or from specified
     // data buffer (owning/not owning)
     void construct(const int *shape, numeric_type *data = nullptr,
-                   bool owned = false) {
+                   buffer_ownership owned = array_does_not_own_buffer) {
         int size = 1;
         for (int i = n_dim - 1; i >= 0; i--) {
             _dim_size[i] = size;
@@ -64,7 +70,7 @@ struct nd_array_base {
             _shared_data.reset(_raw_data, std::default_delete<numeric_type[]>());
         } else {
             _raw_data = data;
-            if (owned) {
+            if (owned == array_owns_buffer) {
                 _shared_data.reset(
                     data, std::default_delete<numeric_type[]>());
             }
@@ -168,7 +174,7 @@ struct nd_array_base {
 #endif
         numeric_type *new_data = new numeric_type[_buf_size];
         std::copy_n(_raw_data, _buf_size, new_data);
-        return nd_array_base(_shape, new_data, true);
+        return nd_array_base(_shape, new_data, array_owns_buffer);
     }
 
     // stringify array, a simple implementation without any care of
@@ -283,11 +289,12 @@ struct nd_array_base {
 template <typename _numeric_type, int _n_dim>
 struct nd_array : nd_array_base<_numeric_type, _n_dim> {
     explicit nd_array(std::initializer_list<int> s,
-                      _numeric_type *data = nullptr, bool owned = false)
+                      _numeric_type *data = nullptr,
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, _n_dim>(s, data, owned) {
     }
     explicit nd_array(const int *shape, _numeric_type *data = nullptr,
-                      bool owned = false)
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, _n_dim>(shape, data, owned) {
     }
 
@@ -298,15 +305,16 @@ struct nd_array : nd_array_base<_numeric_type, _n_dim> {
 template <typename _numeric_type>
 struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
     explicit nd_array(std::initializer_list<int> s,
-                      _numeric_type *data = nullptr, bool owned = false)
+                      _numeric_type *data = nullptr,
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, 1>(s, data, owned) {
     }
     explicit nd_array(const int *shape, _numeric_type *data = nullptr,
-                      bool owned = false)
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, 1>(shape, data, owned) {
     }
     explicit nd_array(int len = 0, _numeric_type *data = nullptr,
-                      bool owned = false)
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, 1>({len}, data, owned) {
     }
 
@@ -346,15 +354,16 @@ struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
 template <typename _numeric_type>
 struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
     explicit nd_array(std::initializer_list<int> s,
-                      _numeric_type *data = nullptr, bool owned = false)
+                      _numeric_type *data = nullptr,
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, 2>(s, data, owned) {
     }
     explicit nd_array(const int *shape, _numeric_type *data = nullptr,
-                      bool owned = false)
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, 2>(shape, data, owned) {
     }
     explicit nd_array(int m = 0, int n = 0, _numeric_type *data = nullptr,
-                      bool owned = false)
+                      buffer_ownership owned = array_does_not_own_buffer)
         : nd_array_base<_numeric_type, 2>({m, n}, data, owned) {
     }
 

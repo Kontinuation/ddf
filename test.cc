@@ -489,20 +489,6 @@ void test_expr_visitor(void) {
     std::shared_ptr<ddf::math_expr<double> > dloss_dw1(loss->derivative("w1"));
     std::shared_ptr<ddf::math_expr<double> > dloss_db1(loss->derivative("b1"));
 
-    ddf::vector<double> loss_val;
-    loss->eval(loss_val);
-    auto &val = var_w1->value();
-    double delta = 1e-12;
-    for (int i = 0; i < val.size(); i++) {
-        ddf::vector<double> loss_val1;
-        double tmp = val[i];
-        val[i] += delta;
-        loss->eval(loss_val1);
-        double d = (loss_val1[0] - loss_val[0]) / delta;
-        val[i] = tmp;
-        printf("d[%d]: %f\n", i, d);
-    }
-
     ddf::matrix<double> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
     logging::info("finite diff D_dw0: %s", D_dw0.to_string().c_str());
     dloss_dw0->grad(D_dw0);
@@ -521,7 +507,7 @@ void test_expr_visitor(void) {
     ddf::matrix<double> D_db1 = ddf::finite_diff(loss.get(), var_b1);;
     logging::info("finite diff D_db1: %s", D_db1.to_string().c_str());
     dloss_db1->grad(D_db1);
-    logging::info("auto idff D_db1: %s", D_db1.to_string().c_str());
+    logging::info("auto diff D_db1: %s", D_db1.to_string().c_str());
 
 
     std::shared_ptr<ddf::math_expr<double> > loss_2(loss->clone());

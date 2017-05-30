@@ -176,6 +176,9 @@ public:
     }
 
     void dbg_dump(void) {
+        logging::debug("loss_expr:");
+        logging::debug("  %s", _loss_expr->to_string().c_str());
+
         logging::debug("grad_expr:");
         for (auto &kv: _grad_expr) {
             logging::debug("  %s: %s",

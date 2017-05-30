@@ -8,7 +8,7 @@ template <typename numeric_type>
 matrix<numeric_type> finite_diff(
     math_expr<numeric_type> *expr, variable<numeric_type> *var,
     numeric_type delta = 1e-6) {
-    vector<double> expr_val;
+    vector<numeric_type> expr_val;
     expr->eval(expr_val);
     auto &val = var->value();
 

@@ -49,13 +49,13 @@ int main(int argc, char *argv[]) {
         float *l = new float[n_classes];
 
         ddf::variable<float> *var_w0 =
-            new ddf::variable<float>("w0", ddf::vector<float>(len_w0, w0));
+            new ddf::variable<float>("w0", ddf::vector<float>(len_w0, w0, ddf::array_owns_buffer));
         ddf::variable<float> *var_b0 =
-            new ddf::variable<float>("b0", ddf::vector<float>(len_b0, b0));
+            new ddf::variable<float>("b0", ddf::vector<float>(len_b0, b0, ddf::array_owns_buffer));
         ddf::variable<float> *var_w1 =
-            new ddf::variable<float>("w1", ddf::vector<float>(len_w1, w1));
+            new ddf::variable<float>("w1", ddf::vector<float>(len_w1, w1, ddf::array_owns_buffer));
         ddf::variable<float> *var_b1 =
-            new ddf::variable<float>("b1", ddf::vector<float>(len_b1, b1));
+            new ddf::variable<float>("b1", ddf::vector<float>(len_b1, b1, ddf::array_owns_buffer));
 
         // initial value of hyper parameters
         var_w0->value().fill_rand();
@@ -64,9 +64,9 @@ int main(int argc, char *argv[]) {
         var_b1->value().fill_rand();
         
         ddf::variable<float> *var_x = 
-            new ddf::variable<float>("x", ddf::vector<float>(dimension, x));
+            new ddf::variable<float>("x", ddf::vector<float>(dimension, x, ddf::array_owns_buffer));
         ddf::variable<float> *var_l = 
-            new ddf::variable<float>("l", ddf::vector<float>(n_classes, l));
+            new ddf::variable<float>("l", ddf::vector<float>(n_classes, l, ddf::array_owns_buffer));
 
         // predict: w1 * (relu(w0 * x + b0)) + b1
         ddf::matrix_mult<float> matmul_0, matmul_1;
@@ -97,48 +97,13 @@ int main(int argc, char *argv[]) {
         //     &DS, 
         //     predict, /* predict->clone() */
         //     var_l);
-                 
-        ddf::math_expr<float> *dloss_dw0 = loss->derivative("w0");
-        ddf::math_expr<float> *dloss_db0 = loss->derivative("b0");
-        ddf::math_expr<float> *dloss_dw1 = loss->derivative("w1");
-        ddf::math_expr<float> *dloss_db1 = loss->derivative("b1");
         
-        logging::info("predict: %s", predict->to_string().c_str());
-        logging::info("loss: %s", loss->to_string().c_str());
-        logging::info("dloss_dw0: %s", dloss_dw0->to_string().c_str());
-        logging::info("dloss_db0: %s", dloss_db0->to_string().c_str());
-        logging::info("dloss_dw1: %s", dloss_dw1->to_string().c_str());
-        logging::info("dloss_db1: %s", dloss_db1->to_string().c_str());
-        
-        ddf::vector<float> sum_dw0(len_w0);
-        ddf::vector<float> sum_db0(len_b0);
-        ddf::vector<float> sum_dw1(len_w1);
-        ddf::vector<float> sum_db1(len_b1);
-        ddf::matrix<float> dw0(0,0);
-        ddf::matrix<float> db0(0,0);
-        ddf::matrix<float> dw1(0,0);
-        ddf::matrix<float> db1(0,0);
-        
-        ddf::vector<float> c(0);
-        float alpha = 0.5;
-        
+        // truncate the training data for faster shakedown run
         n_samples = 1000;
+                
+        // train this model using optimizer defined in train.hh
         
-        logging::info("len_w0: %d, len_b0: %d, dimension: %d, n_samples: %d, n_classes: %d",
-            len_w0, len_b0, dimension, n_samples, n_classes);
-
-        float sum_loss = 0;
-        for (int k = 0; k < n_samples; k++) {
-            std::copy_n(fea + k * dimension, dimension, x);
-            std::fill_n(l, n_classes, 0);
-            l[label[k]] = 1;
-            loss->eval(c);
-            sum_loss += c[0];
-        }
-        logging::info("initial loss: %f", sum_loss);
-
-#if 1
-        // using train.hh
+        // prepare feeded data 
         ddf::matrix<float> xs(n_samples, dimension, fea);
         ddf::matrix<float> ls(n_samples, n_classes);
         ls.fill(0);
@@ -146,6 +111,7 @@ int main(int argc, char *argv[]) {
             ls(k, label[k]) = 1;
         }
         
+        // construct optimizer
         ddf::optimization<float> optimizer;
         std::map<std::string, ddf::matrix<float> > feed_dict = {
             {"x", xs },
@@ -153,89 +119,23 @@ int main(int argc, char *argv[]) {
         };
         optimizer.minimize(loss.get(), &feed_dict);
         optimizer.dbg_dump();
-        
-        for (int iter = 0; iter < 10; iter++) {
+
+        // initial loss
+        float training_loss = optimizer.loss();
+        logging::info("initial loss: %f", training_loss);
+
+        // perform iterative optimization to reduce training loss
+        for (int iter = 0; iter < 100; iter++) {
             clock_t start = clock();
             optimizer.step(1);
-            float sum_loss = optimizer.loss();
+            float training_loss = optimizer.loss();
             clock_t end = clock();
             logging::info("iter: %d, loss: %f, cost: %f sec",
-                iter, sum_loss,
+                iter, training_loss,
                 (double)(end - start) / CLOCKS_PER_SEC);
         }
-#endif
 
-        var_w0->value().fill_rand();
-        var_b0->value().fill_rand();
-        var_w1->value().fill_rand();
-        var_b1->value().fill_rand();
-
-        sum_loss = 0;
-        for (int k = 0; k < n_samples; k++) {
-            std::copy_n(fea + k * dimension, dimension, x);
-            std::fill_n(l, n_classes, 0);
-            l[label[k]] = 1;
-            loss->eval(c);
-            sum_loss += c[0];
-        }
-        logging::info("initial loss: %f", sum_loss);
-
-        for (int iter = 0; iter < 10; iter++) {
-            clock_t start = clock();
-            sum_dw0.fill(0);
-            sum_db0.fill(0);
-            sum_dw1.fill(0);
-            sum_db1.fill(0);
-            
-            for (int k = 0; k < n_samples; k++) {
-
-                // copy training data to placeholder
-                std::copy_n(fea + k * dimension, dimension, x);
-
-                // one-hot encoding for label
-                std::fill_n(l, n_classes, 0);
-                l[label[k]] = 1;
-
-                // gradient descent
-                // dw0.fill(0); db0.fill(0);
-                // dw1.fill(0); db1.fill(0);
-                dloss_dw0->grad(dw0); dloss_db0->grad(db0);
-                dloss_dw1->grad(dw1); dloss_db1->grad(db1);
-                sum_dw0 += ddf::vector<float>(len_w0, dw0.raw_data());
-                sum_db0 += ddf::vector<float>(len_b0, db0.raw_data());
-                sum_dw1 += ddf::vector<float>(len_w1, dw1.raw_data());
-                sum_db1 += ddf::vector<float>(len_b1, db1.raw_data());
-            }
-
-            sum_dw0 *= (alpha / n_samples);
-            sum_db0 *= (alpha / n_samples);
-            sum_dw1 *= (alpha / n_samples);
-            sum_db1 *= (alpha / n_samples);
-            
-            var_w0->_val -= sum_dw0;
-            var_b0->_val -= sum_db0;
-            var_w1->_val -= sum_dw1;
-            var_b1->_val -= sum_db1;
-
-            sum_loss = 0;
-            for (int k = 0; k < n_samples; k++) {
-                std::copy_n(fea + k * dimension, dimension, x);
-                std::fill_n(l, n_classes, 0);
-                l[label[k]] = 1;
-                loss->eval(c);
-                sum_loss += c[0];
-            }
-
-            clock_t end = clock();
-            logging::info("iter: %d, loss: %f, cost: %f sec",
-                iter, sum_loss,
-                (double)(end - start) / CLOCKS_PER_SEC);
-            
-            // logging::info("w0: %s", ddf::vector<float>(10, var_w0->value().raw_data()).to_string().c_str());
-            // logging::info("b0: %s", ddf::vector<float>(10, var_b0->value().raw_data()).to_string().c_str());
-            // logging::info("w1: %s", ddf::vector<float>(10, var_w1->value().raw_data()).to_string().c_str());
-            // logging::info("b1: %s", ddf::vector<float>(10, var_b1->value().raw_data()).to_string().c_str());
-        }
+        // TODO: save trained model to file
     }
     else if (!strcmp(cmd, "predict")) {
         dataset d_test(dataset_file);
@@ -243,15 +143,11 @@ int main(int argc, char *argv[]) {
         float *theta = new float[len_theta];
         int fd = open(model_file, O_RDONLY);
         if (fd != 0) {
-            int model_bytes = len_theta * sizeof(float);
-            if (model_bytes != read(fd, theta, model_bytes)) {
-                logging::error("failed to read model file");
-                close(fd);
-                return -1;
-            }
+            // TODO: load model from file
+            
             close(fd);
 
-            // predict all samples in dataset
+            // TODO: predict all samples in dataset
 
         } else {
             logging::error("failed to open model file");
