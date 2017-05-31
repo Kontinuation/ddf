@@ -43,25 +43,15 @@ int main(int argc, char *argv[]) {
         int len_b0 = n_hidden;
         int len_w1 = n_classes * n_hidden;
         int len_b1 = n_classes;
-        float *w0 = new float[len_w0];
-        float *b0 = new float[len_b0];
-        float *w1 = new float[len_w1];
-        float *b1 = new float[len_b1];
-        float *x = new float[dimension];
-        float *l = new float[n_classes];
 
         ddf::variable<float> *var_w0 =
-            new ddf::variable<float>("w0", 
-                ddf::vector<float>(len_w0, w0, ddf::array_owns_buffer));
+            new ddf::variable<float>("w0", ddf::vector<float>(len_w0));
         ddf::variable<float> *var_b0 =
-            new ddf::variable<float>("b0", 
-                ddf::vector<float>(len_b0, b0, ddf::array_owns_buffer));
+            new ddf::variable<float>("b0", ddf::vector<float>(len_b0));
         ddf::variable<float> *var_w1 =
-            new ddf::variable<float>("w1", 
-                ddf::vector<float>(len_w1, w1, ddf::array_owns_buffer));
+            new ddf::variable<float>("w1", ddf::vector<float>(len_w1));
         ddf::variable<float> *var_b1 =
-            new ddf::variable<float>("b1", 
-                ddf::vector<float>(len_b1, b1, ddf::array_owns_buffer));
+            new ddf::variable<float>("b1", ddf::vector<float>(len_b1));
 
         // initial value of hyper parameters
         var_w0->value().fill_rand();
@@ -70,11 +60,9 @@ int main(int argc, char *argv[]) {
         var_b1->value().fill_rand();
         
         ddf::variable<float> *var_x = 
-            new ddf::variable<float>("x", 
-                ddf::vector<float>(dimension, x, ddf::array_owns_buffer));
+            new ddf::variable<float>("x", ddf::vector<float>(dimension));
         ddf::variable<float> *var_l = 
-            new ddf::variable<float>("l",
-                ddf::vector<float>(n_classes, l, ddf::array_owns_buffer));
+            new ddf::variable<float>("l", ddf::vector<float>(n_classes));
 
         // predict: w1 * (relu(w0 * x + b0)) + b1
         ddf::matrix_mult<float> matmul_0, matmul_1;

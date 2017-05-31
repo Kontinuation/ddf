@@ -427,27 +427,21 @@ void test_expr_visitor(void) {
     const int len_b0 = n_hidden;
     const int len_w1 = n_classes * n_hidden;
     const int len_b1 = n_classes;
-    numeric_type w0[len_w0];
-    numeric_type b0[len_b0];
-    numeric_type w1[len_w1];
-    numeric_type b1[len_b1];
-    numeric_type x[dimension];
-    numeric_type l[n_classes];
 
 #define LENGTH(x) (sizeof(x) / sizeof(x[0]))
-    
+
     ddf::variable<numeric_type> *var_w0 =
-        new ddf::variable<numeric_type>("w0", ddf::vector<numeric_type>(LENGTH(w0), w0));
+        new ddf::variable<numeric_type>("w0", ddf::vector<numeric_type>(len_w0));
     ddf::variable<numeric_type> *var_b0 =
-        new ddf::variable<numeric_type>("b0", ddf::vector<numeric_type>(LENGTH(b0), b0));
+        new ddf::variable<numeric_type>("b0", ddf::vector<numeric_type>(len_b0));
     ddf::variable<numeric_type> *var_w1 =
-        new ddf::variable<numeric_type>("w1", ddf::vector<numeric_type>(LENGTH(w1), w1));
+        new ddf::variable<numeric_type>("w1", ddf::vector<numeric_type>(len_w1));
     ddf::variable<numeric_type> *var_b1 =
-        new ddf::variable<numeric_type>("b1", ddf::vector<numeric_type>(LENGTH(b1), b1));
+        new ddf::variable<numeric_type>("b1", ddf::vector<numeric_type>(len_b1));
     ddf::variable<numeric_type> *var_x = 
-        new ddf::variable<numeric_type>("x", ddf::vector<numeric_type>(LENGTH(x), x));
+        new ddf::variable<numeric_type>("x", ddf::vector<numeric_type>(dimension));
     ddf::variable<numeric_type> *var_l = 
-        new ddf::variable<numeric_type>("l", ddf::vector<numeric_type>(LENGTH(l), l));
+        new ddf::variable<numeric_type>("l", ddf::vector<numeric_type>(n_classes));
         
     // initial value of hyper parameters
     var_w0->value().fill_rand();
@@ -457,8 +451,9 @@ void test_expr_visitor(void) {
 
     // initial value of input and target
     var_x->value().fill_rand();
-    var_l->value().fill(0);
-    l[0] = 1.0;
+    auto &val_l = var_l->value();
+    val_l.fill(0);
+    val_l[0] = 1;
 
     // predict: w1 * (relu(w0 * x + b0)) + b1
     ddf::matrix_mult<numeric_type> matmul_0, matmul_1;
