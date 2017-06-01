@@ -7,6 +7,7 @@
 #include "array_opt.hh"
 #include "op.hh"
 #include "expr.hh"
+#include "cse.hh"
 #include "train.hh"
 #include "debugging.hh"
 
