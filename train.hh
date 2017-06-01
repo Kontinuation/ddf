@@ -106,7 +106,11 @@ public:
                 _loss_expr->derivative(s.first));
         }
 
-        // TODO: perform CSE on ALL gradient expressions
+        // perform CSE on ALL gradient expressions
+        ddf::common_subexpr_elim<numeric_type> cse;
+        for (auto &s: _grad_expr) {
+            cse.apply(s.second);
+        }
     }
 
     // calculate current training loss
