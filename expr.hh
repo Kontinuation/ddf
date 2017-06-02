@@ -54,11 +54,43 @@ public:
     virtual math_expr *clone(void) const = 0;
     virtual std::string to_string() const = 0;
     virtual void apply(math_expr_visitor<_numeric_type> *visitor) = 0;
-    virtual void eval(vector<_numeric_type> &y) = 0;
-    virtual void grad(matrix<_numeric_type> &m) {
+    virtual void _eval(vector<_numeric_type> &y) = 0;
+    virtual void _grad(matrix<_numeric_type> &m) {
         assert(("cannot calculate grad on this expr", false));
     }
+
+    void eval(vector<_numeric_type> &y) {
+        if (!_cached_y) {
+            _eval(_y);
+            _cached_y = true;
+        }
+        y.copy_from(_y);
+    }
+
+    void grad(matrix<_numeric_type> &m) {
+        if (!_cached_m) {
+            _grad(_m);
+            _cached_m = true;
+        }
+        m.copy_from(_m);
+    }
+
+    void invalidate_this(void) {
+        _cached_y = false;
+        _cached_m = false;
+    }
+
+    virtual void invalidate(void) {
+        invalidate_this();
+    }
+
     expr_typeid type;
+
+protected:
+    bool _cached_y = false;
+    bool _cached_m = false;
+    vector<_numeric_type> _y;
+    matrix<_numeric_type> _m;
 
 private:
     DISABLE_COPY_AND_ASSIGN(math_expr);
@@ -90,7 +122,7 @@ struct constant: math_expr<numeric_type> {
         return nullptr;
     }
 
-    void eval(vector<numeric_type> &y) {
+    void _eval(vector<numeric_type> &y) {
         y.copy_from(_v);
     }
 
@@ -120,11 +152,11 @@ struct identity: math_expr<numeric_type> {
         return nullptr;
     }
 
-    void eval(vector<numeric_type> &) {
+    void _eval(vector<numeric_type> &) {
         assert(("could not evaluate identity as vector", false));
     }
 
-    void grad(matrix<numeric_type> &m) {
+    void _grad(matrix<numeric_type> &m) {
         assert(("grad of identiy should be omitted for efficiency", false));
     }
 
@@ -167,7 +199,7 @@ struct variable: math_expr<numeric_type> {
         }
     }
 
-    void eval(vector<numeric_type> &y) {
+    void _eval(vector<numeric_type> &y) {
         y.copy_from(_val);      // y = _val.clone();
     }
 
@@ -237,7 +269,7 @@ struct function_call: math_expr<numeric_type> {
         }
     }
 
-    void eval(vector<numeric_type> &y) {
+    void _eval(vector<numeric_type> &y) {
         size_t n_args = _args.size();
         for (size_t k = 0; k < n_args; k++) {
             _args[k]->eval(_xs[k]);
@@ -249,6 +281,13 @@ struct function_call: math_expr<numeric_type> {
 
     math_expr<numeric_type> *clone(void) const {
         return new function_call(_op, clone_exprs(_args));
+    }
+
+    void invalidate(void) {
+        this->invalidate_this();
+        for (auto &arg: _args) {
+            arg->invalidate();
+        }
     }
 
     std::string to_string() const {
@@ -288,11 +327,11 @@ struct dfunction_call: math_expr<numeric_type> {
         return nullptr;
     }
 
-    void eval(vector<numeric_type> &y) {
+    void _eval(vector<numeric_type> &y) {
         assert(("could not evaluate derivative as vector", false));
     }
 
-    void grad(matrix<numeric_type> &m) {
+    void _grad(matrix<numeric_type> &m) {
         this->prepare();
 
         if (_d_arg->type != expr_typeid::IDENTITY) {
@@ -306,28 +345,35 @@ struct dfunction_call: math_expr<numeric_type> {
             int mult_by_opt = 0;
             auto d_arg = static_cast<dfunction_call<numeric_type> *>(_d_arg.get());
             if (_d_arg->type == expr_typeid::DFUNCTION_CALL) {
-                if (_d_arg->type == expr_typeid::DFUNCTION_CALL) {
-                    if (d_arg->_d_arg->type == expr_typeid::IDENTITY) {
-                        mult_by_opt = d_arg->_op->mult_by_opt_level(d_arg->_k_param);
-                    }
+                if (d_arg->_d_arg->type == expr_typeid::IDENTITY) {
+                    mult_by_opt = d_arg->_op->mult_by_opt_level(d_arg->_k_param);
                 }
+            }
 
-                if (mult_opt > 0 || mult_by_opt > 0) {
-                    // optimized case
-                    if (mult_opt > mult_by_opt) {
-                        _d_arg->grad(_D_g);
-                        _op->mult_grad(_k_param, _D_g, m);
-                    } else {
-                        _op->Df(_k_param, _D_f);
-                        d_arg->prepare();
-                        d_arg->_op->mult_by_grad(d_arg->_k_param, _D_f, m);
-                    }
-                } else {
-                    // fallback case
-                    _op->Df(_k_param, _D_f);
+            logging::debug("analyzing %s, mult_opt: %d, mult_by_opt: %d", 
+                this->to_string().c_str(), mult_opt, mult_by_opt);
+
+            if (mult_opt > 0 || mult_by_opt > 0) {
+                // optimized case
+                if (mult_opt > mult_by_opt) {
                     _d_arg->grad(_D_g);
-                    _D_f.mult(_D_g, m); // m = _D_f * _D_g;
+                    _op->mult_grad(_k_param, _D_g, m);
+                } else {
+                    _op->Df(_k_param, _D_f);
+                    d_arg->prepare();
+                    d_arg->_op->mult_by_grad(d_arg->_k_param, _D_f, m);
                 }
+            } else {
+                // fallback case
+                _op->Df(_k_param, _D_f);
+                _d_arg->grad(_D_g);
+
+                logging::debug("fallback %s, Df: (%d,%d); Dg: (%d,%d)",
+                    this->to_string().c_str(), 
+                    _D_f.shape(0), _D_f.shape(1),
+                    _D_g.shape(0), _D_g.shape(1));
+
+                _D_f.mult(_D_g, m); // m = _D_f * _D_g;
             }
 #else
             _op->Df(_k_param, _D_f);
@@ -342,6 +388,14 @@ struct dfunction_call: math_expr<numeric_type> {
     math_expr<numeric_type> *clone(void) const {
         return new dfunction_call(
             _op, clone_exprs(_args), _k_param, _d_arg->clone());
+    }
+
+    void invalidate(void) {
+        this->invalidate_this();
+        _d_arg->invalidate();
+        for (auto &arg: _args) {
+            arg->invalidate();
+        }
     }
 
     std::string to_string() const {
@@ -404,13 +458,13 @@ struct addition: math_expr<numeric_type> {
         }
     }
 
-    void eval(vector<numeric_type> &y) {
+    void _eval(vector<numeric_type> &y) {
         _a->eval(_x);
         _b->eval(y);
         y += _x;
     }
 
-    void grad(matrix<numeric_type> &m) {
+    void _grad(matrix<numeric_type> &m) {
         _a->grad(m);
         _b->grad(_D_b);
         m += _D_b;
@@ -418,6 +472,12 @@ struct addition: math_expr<numeric_type> {
 
     math_expr<numeric_type> *clone(void) const {
         return new addition(_a->clone(), _b->clone());
+    }
+
+    void invalidate(void) {
+        this->invalidate_this();
+        _a->invalidate();
+        _b->invalidate();
     }
 
     std::string to_string() const {

@@ -116,13 +116,12 @@ int main(int argc, char *argv[]) {
         logging::info("initial loss: %f", training_loss);
 
         // perform iterative optimization to reduce training loss
-        for (int iter = 0; iter < 100; iter++) {
+        for (int iter = 0; iter < 10; iter++) {
             clock_t start = clock();
             optimizer.step(1);
-            float training_loss = optimizer.loss();
             clock_t end = clock();
             logging::info("iter: %d, loss: %f, cost: %f sec",
-                iter, training_loss,
+                iter, optimizer.loss(),
                 (double)(end - start) / CLOCKS_PER_SEC);
         }
 

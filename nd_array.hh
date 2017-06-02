@@ -422,6 +422,7 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         const nd_array_base<_numeric_type, 2> &self = *this;
         int m = self.shape(0), n = self.shape(1);
         int bn = b.shape(1);
+        logging::debug("matrix mult: (%d, %d) * (%d, %d)", m, n, n, bn);
         assert(("matrices can be multiplied", n == b.shape(0)));
         res.resize(m, bn);
         res.fill(0);
