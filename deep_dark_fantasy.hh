@@ -8,6 +8,7 @@
 #include "op.hh"
 #include "expr.hh"
 #include "cse.hh"
+#include "check_expr.hh"
 #include "train.hh"
 #include "debugging.hh"
 
