@@ -205,6 +205,10 @@ struct myop_f: ddf::math_op<numeric_type> {
         return _x;
     }
 
+    int size_f() {
+        return 3;
+    }
+
     void f(ddf::vector<numeric_type> &y) {
         y.resize(3);
         y[0] = sin(_x[0]);
@@ -239,6 +243,10 @@ struct myop_g: ddf::math_op<numeric_type> {
     ddf::vector<numeric_type> get_param(int k_param) {
         assert_param_dim(k_param);
         return _x;
+    }
+
+    int size_f() {
+        return 2;
     }
 
     void f(ddf::vector<numeric_type> &y) {
