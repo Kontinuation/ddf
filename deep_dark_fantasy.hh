@@ -10,7 +10,8 @@
 #include "cse.hh"
 #include "check_expr.hh"
 #include "bprop.hh"
-#include "train.hh"
+#include "train_fwd.hh"
+#include "train_bprop.hh"
 #include "debugging.hh"
 
 #endif /* DEEP_DARK_FANTASY_H */

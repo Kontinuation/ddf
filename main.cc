@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
         }
         
         // construct optimizer
-        ddf::optimization<float> optimizer;
+        ddf::optimizer_bprop<float> optimizer;
         std::map<std::string, ddf::matrix<float> > feed_dict = {
             {"x", xs },
             {"l", ls }

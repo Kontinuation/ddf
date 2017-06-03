@@ -1,5 +1,5 @@
-#ifndef _TRAIN_H_
-#define _TRAIN_H_
+#ifndef _TRAIN_BPROP_H_
+#define _TRAIN_BPROP_H_
 
 // Given a deep network, we need to find values for its hyper parameters in
 // order to make this deep network perform certain task. This is achieved by a
@@ -15,7 +15,7 @@
 namespace ddf {
 
 template <typename numeric_type>
-class optimization {
+class optimizer_bprop {
 public:
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
@@ -58,57 +58,42 @@ public:
             } else {
                 _hyperparam_var.insert(s);
                 _derivative[var] = vector_type(var_expr->value().size());
-                _gradient[var] = matrix_type();
             }
         }
 
-        // calculate gradient expressions on hyper parameters
-        for (auto &s: _hyperparam_var) {
-            _grad_expr[s.first] = std::shared_ptr<expr_type>(
-                _loss_expr->derivative(s.first));
-        }
-
-        // perform CSE on ALL gradient expressions
-        ddf::common_subexpr_elim<numeric_type> cse;
-        for (auto &s: _grad_expr) {
-            cse.apply(s.second);
+        // calculate initial loss
+        ddf::vector<numeric_type> y;
+        _training_loss = 0;
+        for (int k = 0; k < _n_samples; k++) {
+            for (auto &kv: _feed_var) {
+                const std::string &var = kv.first;
+                const matrix_type &arr_var = _feed_dict->find(var)->second;
+                varexpr_type *var_expr = kv.second;
+                var_expr->_val.copy_from(&arr_var(k, 0));
+            }
+            _loss_expr->eval(y);
+            _training_loss += y[0];
         }
     }
 
     // calculate current training loss
     virtual numeric_type loss(void) {
-        numeric_type sum_loss = 0;
-        vector_type c;
-        for (int k = 0; k < _n_samples; k++) {
-            // set value for feeded variables
-            for (auto &kv: _feed_var) {
-                const std::string &var = kv.first;
-                const matrix_type &arr_var = _feed_dict->find(var)->second;
-                varexpr_type *var_expr = kv.second;
-                
-                // This does not work:
-                //    var_expr->set_value(vector_type(vec_size, &arr_var(k, 0)));
-                //
-                // Since pointers were not shared amoung copies of vectors, but
-                // bufferes were shared, so we need to copy direcly into the
-                // underlying buffer
-                var_expr->_val.copy_from(&arr_var(k, 0));
-            }
-            _loss_expr->eval(c);
-            sum_loss += c[0];
-        }
-        return sum_loss;
+        return _training_loss;
     }
 
     // run iterative training algorithm
     virtual void step(int n_epochs) {
+        ddf::backpropagation<numeric_type> bprop;
+        ddf::reset_delta<numeric_type> reset;
+        ddf::vector<numeric_type> y;
         for (int iter = 0; iter < n_epochs; iter++) {
             // initialize accumulative derivatives
             for (auto &kv: _derivative) {
                 kv.second.fill(0);
             }
 
-            // calculate derivative for each sample
+            // calculate derivative for each sampl
+            _training_loss = 0;
             for (int k = 0; k < _n_samples; k++) {
                 // set value for feeded variables
                 for (auto &kv: _feed_var) {
@@ -118,15 +103,17 @@ public:
                     var_expr->_val.copy_from(&arr_var(k, 0));
                 }
 
+                // perform backpropagation
+                _loss_expr->apply(&reset);
+                _loss_expr->eval(y);
+                _loss_expr->apply(&bprop);
+                _training_loss += y[0];
+
                 // calculate gradient for hyper parameters
-                for (auto &kv: _grad_expr) {
+                for (auto &kv: _hyperparam_var) {
                     const std::string &var = kv.first;
-                    expr_type *grad_expr = kv.second.get();
-                    matrix_type &D = _gradient[var];
-                    D.fill(0);
-                    grad_expr->grad(D);
-                    _derivative[var] +=
-                        vector<numeric_type>(D.shape(1), D.raw_data());
+                    varexpr_type *var_expr = kv.second;
+                    _derivative[var] += var_expr->delta;
                 }
             }
 
@@ -145,12 +132,6 @@ public:
         logging::debug("loss_expr:");
         logging::debug("  %s", _loss_expr->to_string().c_str());
 
-        logging::debug("grad_expr:");
-        for (auto &kv: _grad_expr) {
-            logging::debug("  %s: %s",
-                kv.first.c_str(), kv.second->to_string().c_str());
-        }
-
         logging::debug("feed_var:");
         for (auto &kv: _feed_var) {
             logging::debug("  %s: vector(%d)",
@@ -162,18 +143,6 @@ public:
             logging::debug("  %s: vector(%d)",
                 kv.first.c_str(), kv.second->value().size());
         }
-
-        logging::debug("derivative:");
-        for (auto &kv: _derivative) {
-            logging::debug("  %s: vector(%d)",
-                kv.first.c_str(), kv.second.size());
-        }
-
-        logging::debug("gradient:");
-        for (auto &kv: _gradient) {
-            logging::debug("  %s: matrix(%d, %d)",
-                kv.first.c_str(), kv.second.shape(0), kv.second.shape(1));
-        }
     }
 
 protected:
@@ -181,11 +150,10 @@ protected:
     const std::map<std::string, matrix_type> *_feed_dict = nullptr;
     int _n_samples = 0;
     numeric_type _alpha = 0.5; 
-    std::map<std::string, std::shared_ptr<expr_type> > _grad_expr;
     std::map<std::string, varexpr_type *> _feed_var;
     std::map<std::string, varexpr_type *> _hyperparam_var;
     std::map<std::string, vector_type> _derivative;
-    std::map<std::string, matrix_type> _gradient;
+    numeric_type _training_loss = 0;
 };
 
 } // end namespace ddf
