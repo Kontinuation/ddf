@@ -133,7 +133,6 @@ public:
                 var_expr->_val.copy_from(&arr_var(k, 0));
             }
             _loss_expr->eval(c);
-            _loss_expr->invalidate();
             sum_loss += c[0];
         }
         return sum_loss;
@@ -166,12 +165,6 @@ public:
                     grad_expr->grad(D);
                     _derivative[var] +=
                         vector<numeric_type>(D.shape(1), D.raw_data());
-                }
-
-                // reset expr cache
-                for (auto &kv: _grad_expr) {
-                    expr_type *grad_expr = kv.second.get();
-                    grad_expr->invalidate();
                 }
             }
 
