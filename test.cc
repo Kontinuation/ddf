@@ -155,11 +155,14 @@ void test_expr(void)
     loss->eval(y);
     printf("loss result: %s\n", y.to_string().c_str());
 
+    // forward gradient
     ddf::math_expr<double> *dloss = loss->derivative("w");
     printf("d loss: %s\n", dloss->to_string().c_str());
     ddf::matrix<double> dm(0,0);
     dloss->grad(dm);
     printf("dloss result: %s\n", dm.to_string().c_str());
+    dm = ddf::finite_diff(loss, var_w);
+    printf("dloss finite diff result: %s\n", dm.to_string().c_str());
     delete dloss;
 
     ddf::math_expr<double> *dloss_b = loss->derivative("b");
@@ -167,25 +170,18 @@ void test_expr(void)
     ddf::matrix<double> dm_b(0,0);
     dloss_b->grad(dm_b);
     printf("dloss_b result: %s\n", dm_b.to_string().c_str());
+    dm_b = ddf::finite_diff(loss, var_b);
+    printf("dloss_b finite diff result: %s\n", dm_b.to_string().c_str());
     delete dloss_b;
 
-    double delta = 1e-6;
-    for (size_t k = 0; k < (sizeof w0) / (sizeof w0[0]); k++) {
-        double tmp = var_w->_val[k];
-        var_w->_val[k] += delta;
-        ddf::vector<double> y1(1);
-        loss->eval(y1);
-        printf("d w[%lu]: %f\n", k, (y1[0] - y[0]) / delta);
-        var_w->_val[k] = tmp;
-    }
-    for (size_t k = 0; k < (sizeof b0) / (sizeof b0[0]); k++) {
-        double tmp = var_b->_val[k];
-        var_b->_val[k] += delta;
-        ddf::vector<double> y1(1);
-        loss->eval(y1);
-        printf("d b[%lu]: %f\n", k, (y1[0] - y[0]) / delta);
-        var_b->_val[k] = tmp;
-    }
+    // backprop gradient
+    ddf::backpropagation<double> bprop;
+    ddf::reset_delta<double> reset;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+    printf("dloss_w: %s\n", var_w->delta.to_string().c_str());
+    printf("dloss_b: %s\n", var_b->delta.to_string().c_str());
 
     delete loss;
 }
@@ -214,6 +210,11 @@ struct myop_f: ddf::math_op<numeric_type> {
         y[0] = sin(_x[0]);
         y[1] = _x[0] - _x[1];
         y[2] = _x[0] * _x[1];
+    }
+
+    void bprop(int k_param, ddf::vector<numeric_type> &dx) {
+        assert_param_dim(k_param);
+        
     }
 
     void Df(int k_param, ddf::matrix<numeric_type> &D) {
@@ -253,6 +254,11 @@ struct myop_g: ddf::math_op<numeric_type> {
         y.resize(2);
         y[0] = _x[0] + _x[1];
         y[1] = _x[0] * _x[1];
+    }
+
+    void bprop(int k_param, ddf::vector<numeric_type> &dx) {
+        assert_param_dim(k_param);
+        
     }
 
     void Df(int k_param, ddf::matrix<numeric_type> &D) {
@@ -428,6 +434,7 @@ void test_relu(void)
 
 template <typename numeric_type>
 void test_expr_visitor(void) {
+    srand(time(0));
     const int dimension = 8;
     const int n_classes = 4;
     const int n_hidden = 3;
@@ -493,25 +500,38 @@ void test_expr_visitor(void) {
     std::shared_ptr<ddf::math_expr<numeric_type> > dloss_dw1(loss->derivative("w1"));
     std::shared_ptr<ddf::math_expr<numeric_type> > dloss_db1(loss->derivative("b1"));
 
+    // backprop gradient
+    ddf::backpropagation<numeric_type> bprop;
+    ddf::reset_delta<numeric_type> reset;
+    ddf::vector<numeric_type> y;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+
     ddf::matrix<numeric_type> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
     logging::info("finite diff D_dw0: %s", D_dw0.to_string().c_str());
     dloss_dw0->grad(D_dw0);
     logging::info("auto diff D_dw0: %s", D_dw0.to_string().c_str());
+    logging::info("bprop dw0:\n  %s", var_w0->delta.to_string().c_str());
 
     ddf::matrix<numeric_type> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
     logging::info("finite diff D_dw1: %s", D_dw1.to_string().c_str());
     dloss_dw1->grad(D_dw1);
     logging::info("auto diff D_dw1: %s", D_dw1.to_string().c_str());
+    logging::info("bprop dw1:\n  %s", var_w1->delta.to_string().c_str());
 
     ddf::matrix<numeric_type> D_db0 = ddf::finite_diff(loss.get(), var_b0);
     logging::info("finite diff D_db0: %s", D_db0.to_string().c_str());
     dloss_db0->grad(D_db0);
     logging::info("auto diff D_db0: %s", D_db0.to_string().c_str());
+    logging::info("bprop db0:\n  %s", var_b0->delta.to_string().c_str());
     
     ddf::matrix<numeric_type> D_db1 = ddf::finite_diff(loss.get(), var_b1);
     logging::info("finite diff D_db1: %s", D_db1.to_string().c_str());
     dloss_db1->grad(D_db1);
     logging::info("auto diff D_db1: %s", D_db1.to_string().c_str());
+    logging::info("bprop db1:\n  %s", var_b1->delta.to_string().c_str());
+
 
     ddf::dump_expr_as_dotfile<numeric_type> dump_loss("loss.dot");
     loss->apply(&dump_loss);
@@ -551,7 +571,7 @@ int main(int argc, char *argv[])
     test_array_opt();
     test_relu();
     test_expr();
-    test_fg();
+    // test_fg();
     test_expr_visitor<float>();
     test_expr_visitor<double>();
     return 0;

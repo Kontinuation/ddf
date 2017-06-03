@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
                 var_l));
         
         // truncate the training data for faster shakedown run
-        n_samples = 1000;
+        n_samples = std::min(1000, n_samples);
                 
         // -- train this model using optimizer defined in train.hh --
         

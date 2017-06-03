@@ -59,6 +59,7 @@ public:
             int n_row = dy.size();
             int n_col = _x.size();
             d.resize(_w.size());
+            d.fill(0);
             for (int m = 0; m < n_row; m++) {
                 vector_type row(n_col, &d[m * n_col]);
                 _x.mult_add(dy[m], row);
@@ -67,8 +68,8 @@ public:
             // dx = w.T * dy
             d.resize(_x.size());
             d.fill(0);
-            int M = _w.shape(0);
-            int N = _w.shape(1);
+            int N = _x.size();
+            int M = _w.size() / N;
             for (int k = 0; k < M; k++) {
                 vector_type row(N, &_w[k * N]);
                 row.mult_add(dy[k], d);
@@ -226,7 +227,7 @@ public:
                 d[i] = _exp_w[i] - _l[i];
             }
         } else {
-            throw exception("bprop of label is not implemented");
+            // throw exception("bprop of label is not implemented");
         }
     }
 

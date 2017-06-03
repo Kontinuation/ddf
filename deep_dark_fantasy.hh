@@ -9,6 +9,7 @@
 #include "expr.hh"
 #include "cse.hh"
 #include "check_expr.hh"
+#include "bprop.hh"
 #include "train.hh"
 #include "debugging.hh"
 

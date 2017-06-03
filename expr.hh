@@ -56,9 +56,10 @@ public:
     virtual void apply(math_expr_visitor<_numeric_type> *visitor) = 0;
     virtual void eval(vector<_numeric_type> &y) = 0;
     virtual void grad(matrix<_numeric_type> &m) {
-        assert(("cannot calculate grad on this expr", false));
+        throw exception("cannot calculate grad on this expr");
     }
     expr_typeid type;
+    vector<_numeric_type> delta;
 
 private:
     DISABLE_COPY_AND_ASSIGN(math_expr);
@@ -91,7 +92,7 @@ struct constant: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        y.copy_from(_v);
+        y = _v;
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -122,10 +123,6 @@ struct identity: math_expr<numeric_type> {
 
     void eval(vector<numeric_type> &) {
         assert(("could not evaluate identity as vector", false));
-    }
-
-    void grad(matrix<numeric_type> &m) {
-        assert(("grad of identiy should be omitted for efficiency", false));
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -168,7 +165,7 @@ struct variable: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        y.copy_from(_val);      // y = _val.clone();
+        y = _val;
     }
 
     math_expr<numeric_type> *clone(void) const {
@@ -203,7 +200,8 @@ struct function_call: math_expr<numeric_type> {
             if (!arg1) break; else _args.push_back(shared_math_expr_ptr(arg1));
             if (!arg2) break; else _args.push_back(shared_math_expr_ptr(arg2));
         } while(0);
-        _xs.resize(_args.size());        
+        _xs.resize(_args.size());
+        _dxs.resize(_args.size());
     }
 
     function_call(math_op<numeric_type> *op, 
@@ -211,6 +209,7 @@ struct function_call: math_expr<numeric_type> {
         : math_expr<numeric_type>(expr_typeid::FUNCTION_CALL),
           _op(op), _args(args) {
         _xs.resize(args.size());
+        _dxs.resize(_args.size());
     }
 
     math_expr<numeric_type> *derivative(const std::string &var) {
@@ -268,6 +267,7 @@ struct function_call: math_expr<numeric_type> {
     math_op<numeric_type> *_op;
     std::vector<shared_math_expr_ptr> _args;
     std::vector<vector<numeric_type> > _xs;
+    std::vector<vector<numeric_type> > _dxs;
 };
 
 // ddf(arg)/dx is a invalid term
@@ -412,9 +412,10 @@ struct addition: math_expr<numeric_type> {
     }
 
     void eval(vector<numeric_type> &y) {
-        _a->eval(_x);
-        _b->eval(y);
-        y += _x;
+        _a->eval(_ya);
+        _b->eval(_yb);
+        y.copy_from(_ya);
+        y += _yb;
     }
 
     void grad(matrix<numeric_type> &m) {
@@ -437,7 +438,8 @@ struct addition: math_expr<numeric_type> {
 
     shared_math_expr_ptr _a;
     shared_math_expr_ptr _b;
-    vector<numeric_type> _x;
+    vector<numeric_type> _ya;
+    vector<numeric_type> _yb;
     matrix<numeric_type> _D_b;
 };
 

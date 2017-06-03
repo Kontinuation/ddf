@@ -38,10 +38,14 @@ static std::mutex __s_logging_lock;
         END_LOGGING;                                                    \
     }
 
-
-LOGGING_INTERFACE(info,     "[INFO]  " TC_DIM)
+#if 0
 LOGGING_INTERFACE(trace,    "[TRACE] " )
 LOGGING_INTERFACE(debug,    "[DEBUG] " TC_BOLD)
+#else
+void logging::trace(const char *, ...) { }
+void logging::debug(const char *, ...) { }
+#endif
+LOGGING_INTERFACE(info,     "[INFO]  " TC_DIM)
 LOGGING_INTERFACE(warning,  "[WARN]  " TC_YELLOW)
 LOGGING_INTERFACE(error,    "[ERROR] " TC_RED)
 LOGGING_INTERFACE(critical, "[CRIT]  " TC_RED TC_UNDERL)
