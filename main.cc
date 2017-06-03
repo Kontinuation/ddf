@@ -88,9 +88,6 @@ int main(int argc, char *argv[]) {
             new ddf::function_call<float>(&DS, 
                 predict, /* predict->clone() */
                 var_l));
-
-        ddf::check_size<float> checker;
-        loss->apply(&checker);
         
         // truncate the training data for faster shakedown run
         n_samples = 1000;

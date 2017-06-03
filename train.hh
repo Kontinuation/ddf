@@ -27,6 +27,10 @@ public:
         expr_type *loss_expr, 
         const std::map<std::string, matrix_type> *feed_dict) {
 
+        // validate expression
+        ddf::check_size<numeric_type> checker;
+        loss_expr->apply(&checker);
+
         // remember input arguments
         _feed_dict = feed_dict;
         _loss_expr = loss_expr;
