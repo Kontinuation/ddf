@@ -38,6 +38,10 @@ public:
     // evaluate on prepared value  
     virtual void f(vector_type &y) = 0;
 
+    // backpropagation
+    void set_delta(vector_type &dy) { _dy = dy; }
+    virtual void bprop(int k_param, vector_type &dx) = 0;
+
     // Df_x is the Jacobian matrix of f_x about k_param-th parameter
     virtual void Df(int k_param, matrix_type &D) {
         slow_Df(k_param, D);
@@ -168,6 +172,7 @@ public:
 protected:
     std::string _name;
     int _n_params;
+    vector_type _dy;            // for backward propagation
 
     // optimization level for jacobian matrix multiplications, in form like: {
     //     [0]: { A * D0, D0 * B }, [1]: { A * D1, D1 * B }, ...  }

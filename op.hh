@@ -51,6 +51,31 @@ public:
         mat.mult(_x, y);
     }
 
+    void bprop(int k_param, vector_type &d) {
+        assert_param_dim(k_param);
+        vector_type &dy = this->_dy;
+        if (k_param == 0) {
+            // dw = dy * x.T
+            int n_row = dy.size();
+            int n_col = _x.size();
+            d.resize(_w.size());
+            for (int m = 0; m < n_row; m++) {
+                vector_type row(n_col, &d[m * n_col]);
+                _x.mult_add(dy[m], row);
+            }
+        } else {
+            // dx = w.T * dy
+            d.resize(_x.size());
+            d.fill(0);
+            int M = _w.shape(0);
+            int N = _w.shape(1);
+            for (int k = 0; k < M; k++) {
+                vector_type row(N, &_w[k * N]);
+                row.mult_add(dy[k], d);
+            }
+        }
+    }
+
     void Df(int k_param, matrix_type &D) {
         assert_param_dim(k_param);
         if (k_param == 0) {
@@ -160,7 +185,10 @@ public:
                 _exp_w[k] = exp_wk;
                 divider += exp_wk;
             }
-            _multiplier = 1 / divider;
+            numeric_type multiplier = 1 / divider;
+            for (int k = 0; k < n; k++) {
+                _exp_w[k] *= multiplier;
+            }
         } else if (k_param == 1) {
             _l = v;
         }
@@ -182,11 +210,24 @@ public:
         assert(("prediction size should match with label", n == _l.size()));
         numeric_type sum_ce = 0;
         for (int k = 0; k < n; k++) {
-            sum_ce -= _l[k] * log(_exp_w[k] * _multiplier);
+            sum_ce -= _l[k] * log(_exp_w[k]);
         }
 
         y.resize(1);
         y[0] = sum_ce;
+    }
+
+    void bprop(int k_param, vector_type &d) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            int n = _w.size();
+            d.resize(n);
+            for (int i = 0; i < n; i++) {
+                d[i] = _exp_w[i] - _l[i];
+            }
+        } else {
+            throw exception("bprop of label is not implemented");
+        }
     }
 
     void Df(int k_param, matrix_type &D) {
@@ -194,7 +235,7 @@ public:
         if (k_param == 0) {
             D_w(D);
         } else {
-            assert(("gradient of label is not implemented", false));
+            throw exception("gradient of label is not implemented");
         }
     }
     
@@ -203,7 +244,7 @@ public:
         assert(("prediction size should match with label", n == _l.size()));
         D.resize(1, n);
         for (int i = 0; i < n; i++) {
-            D(0, i) = (_exp_w[i] * _multiplier) - _l[i];
+            D(0, i) = _exp_w[i] - _l[i];
         }
     }
 
@@ -211,7 +252,6 @@ protected:
     vector_type _w;
     vector_type _l;
     vector_type _exp_w;
-    numeric_type _multiplier;
 };
 
 // Rectifier
@@ -246,6 +286,16 @@ public:
         y.resize(n);
         for (int k = 0; k < n; k++) {
             y[k] = _x[k] > 0? _x[k]: 0;
+        }
+    }
+
+    void bprop(int k_param, vector_type &d) {
+        assert_param_dim(k_param);
+        vector_type &dy = this->_dy;
+        int n = _x.size();
+        d.resize(n);
+        for (int k = 0; k < n; k++) {
+            d[k] = _x[k] > 0? dy[k]: 0;
         }
     }
 

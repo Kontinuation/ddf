@@ -348,6 +348,15 @@ struct nd_array<_numeric_type, 1> : nd_array_base<_numeric_type, 1> {
         }
         return res;
     }
+
+    // write result to specified vector to avoid memory allocation
+    void mult_add(_numeric_type K, nd_array<_numeric_type, 1> &res) const {
+        int N = this->shape(0);
+        assert(("invalid result size of mult_add", res.size() == N));
+        for (int k = 0; k < N; ++k) {
+            res[k] += this->_raw_data[k] * K;
+        }
+    }
 };
 
 // special optimized version for 2-d arrays
@@ -405,7 +414,6 @@ struct nd_array<_numeric_type, 2> : nd_array_base<_numeric_type, 2> {
         return ret;
     }
 
-    // write result to specified vector to avoid memory allocation
     void mult(const nd_array<_numeric_type, 1> &v,
         nd_array<_numeric_type, 1> &res) const {
         const nd_array_base<_numeric_type, 2> &self = *this;
