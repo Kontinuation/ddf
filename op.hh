@@ -347,6 +347,92 @@ protected:
     vector_type _x;
 };
 
+// convolutional operator
+template <typename numeric_type>
+class convolution: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+
+    convolution(int w, int h, int d, int fw, int fh, int od, int stride, int padding)
+        : math_op<numeric_type>("conv", 3),
+          _w(w), _h(h), _d(d), _fw(fw), _fh(fh), _fd(_d * od), _od(od),
+          _s(stride), _p(padding) {
+        if ((_w - _fw + _p + _p) % _s != 0 || 
+            (_h - _fh + _p + _p) % _s != 0) {
+            throw exception("convnet output does not fit");
+        }
+    }
+
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            _v_input = v;
+            _input = nd_array<numeric_type, 3>({_d, _h, _w}, v.raw_data());
+        } else if (k_param == 1) {
+            _v_filter = v;
+            _filter = nd_array<numeric_type, 3>({_fd, _fh, _fw}, v.raw_data());
+        } else if (k_param == 2) {
+            _bias = v;
+        }
+    }
+
+    int size_f() {
+        if (_w * _h * _d != _v_input.size()) {
+            throw exception(
+                "input volume size does not match with declaration");
+        } else if (_fw * _fh * _fd != _v_filter.size()) {
+            throw exception(
+                "filter volume size does not match with declaration");
+        } else if (_fd / _d != _bias.size()) {
+            throw exception(
+                "bias vector size does not match with declaration");
+        }
+        return (_w - _fw + _p + _p) / _s + 1;
+    }
+
+    void f(vector_type &y) {
+        int out_w = (_w - _fw + _p + _p) / _s + 1;
+        int out_h = (_h - _fh + _p + _p) / _s + 1;
+        y.resize(out_w * out_h * _od);
+        nd_array<numeric_type, 3> out({out_w, out_h, _od}, y.raw_data());
+        for (int i_od = 0; i_od < _od; i_od++) {
+            for (int i = 0; i < _h + _p + _p; i += _s) {
+                for (int j = 0; j < _w + _p + _p; j += _s) {
+                    // calculating inner product of input volume slice and
+                    // filter volume
+                    numeric_type val = 0;
+                    for (int d = 0; d < _d; d++) {
+                        for (int k = 0; k < _fh; k++) {
+                            vector_type _input_slice(_fw, &_input(d, i, j));
+                            vector_type _filter_slice(_fw, &_filter(i_od * d, k, 0));
+                            val += _input_slice.dot(_filter_slice);
+                        }
+                    }
+                    out(i_od, i, j) = val;
+                }
+            }
+        }
+    }
+
+    void bprop(int k_param, vector_type &d) {
+        assert_param_dim(k_param);
+        throw exception("not implemented yet");
+    }
+
+protected:
+    int _w, _h, _d;             // size of input volume
+    int _fw, _fh, _fd;          // size of filters
+    int _od;                    // output depth (_od = _fd / _d)
+    int _s;                     // stride size
+    int _p;                     // size of zero padding
+    nd_array<numeric_type, 3> _input;
+    nd_array<numeric_type, 3> _filter;
+    vector<numeric_type> _bias;
+    vector<numeric_type> _v_input;
+    vector<numeric_type> _v_filter;
+};
+
 } // end namespace ddf
 
 #endif /* OP_H */
