@@ -397,14 +397,26 @@ public:
         y.resize(out_w * out_h * _od);
         nd_array<numeric_type, 3> out({out_w, out_h, _od}, y.raw_data());
         for (int i_od = 0; i_od < _od; i_od++) {
-            for (int i = 0; i < _h + _p + _p; i += _s) {
-                for (int j = 0; j < _w + _p + _p; j += _s) {
+            for (int i = - _p; i < _h + _p; i += _s) {
+                for (int j = - _p; j < _w + _p; j += _s) {
                     // calculating inner product of input volume slice and
                     // filter volume
                     numeric_type val = 0;
-                    for (int d = 0; d < _d; d++) {
-                        for (int k = 0; k < _fh; k++) {
-                            vector_type _input_slice(_fw, &_input(d, i, j));
+                    for (int k = 0; k < _fh; k++) {
+                        // skip paddings
+                        int ii = i + k;
+                        int jj = j;
+                        int fw = _fw;
+                        // skip padding row
+                        if (ii < 0 || ii >= _h) continue;
+                        // skip padding area
+                        if (j < 0) { fw += j; jj = 0; } // left padding
+                        else if (j + fw >= _w) { fw = (_w - j); } // right padding
+                        // skip slice containing only paddings
+                        if (fw <= 0) continue; 
+                        
+                        for (int d = 0; d < _d; d++) {
+                            vector_type _input_slice(_fw, &_input(d, ii, jj));
                             vector_type _filter_slice(_fw, &_filter(i_od * d, k, 0));
                             val += _input_slice.dot(_filter_slice);
                         }
