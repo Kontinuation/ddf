@@ -362,6 +362,10 @@ public:
             (_h - _fh + _p + _p) % _s != 0) {
             throw exception("convnet output does not fit");
         }
+
+        // output slice size
+        _out_w = (_w - _fw + _p + _p) / _s + 1;
+        _out_h = (_h - _fh + _p + _p) / _s + 1;
     }
 
     void prepare(int k_param, const vector_type &v) {
@@ -384,7 +388,7 @@ public:
         } else if (_fw * _fh * _fd != _v_filter.size()) {
             throw exception(
                 "filter volume size does not match with declaration");
-        } else if (_fd / _d != _bias.size()) {
+        } else if (_od != _bias.size()) {
             throw exception(
                 "bias vector size does not match with declaration");
         }
@@ -392,10 +396,8 @@ public:
     }
 
     void f(vector_type &y) {
-        int out_w = (_w - _fw + _p + _p) / _s + 1;
-        int out_h = (_h - _fh + _p + _p) / _s + 1;
-        y.resize(out_w * out_h * _od);
-        nd_array<numeric_type, 3> out({out_w, out_h, _od}, y.raw_data());
+        y.resize(_out_w * _out_h * _od);
+        nd_array<numeric_type, 3> out({ _od, _out_h, _out_w}, y.raw_data());
         for (int i_od = 0; i_od < _od; i_od++) {
             for (int i = - _p; i < _h + _p; i += _s) {
                 for (int j = - _p; j < _w + _p; j += _s) {
@@ -413,12 +415,12 @@ public:
                         if (j < 0) { fw += j; jj = 0; } // left padding
                         else if (j + fw >= _w) { fw = (_w - j); } // right padding
                         // skip slice containing only paddings
-                        if (fw <= 0) continue; 
+                        if (fw <= 0) continue;
                         
                         for (int d = 0; d < _d; d++) {
-                            vector_type _input_slice(_fw, &_input(d, ii, jj));
-                            vector_type _filter_slice(_fw, &_filter(i_od * d, k, 0));
-                            val += _input_slice.dot(_filter_slice);
+                            vector_type input_slice(_fw, &_input(d, ii, jj));
+                            vector_type filter_slice(_fw, &_filter(i_od * d, k, 0));
+                            val += input_slice.dot(filter_slice);
                         }
                     }
                     out(i_od, i, j) = val;
@@ -429,8 +431,106 @@ public:
 
     void bprop(int k_param, vector_type &d) {
         assert_param_dim(k_param);
+        if (k_param == 0) {
+            bprop_input(d);
+        } else if (k_param == 1) {
+            bprop_filter(d);
+        } else if (k_param == 2) {
+            bprop_bias(d);
+        }
         throw exception("not implemented yet");
     }
+
+    void bprop_input(vector_type &d) {
+        vector_type &dy = this->_dy;
+        nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
+
+        // prepare error volume of filter
+        d.resize(_d * _h * _w);
+        nd_array<numeric_type, 3> d_3d({_d, _h, _w}, d.raw_data());
+        d_3d.fill(0);
+
+        // distribute errors to corresponding elements in filter volume
+        for (int i_od = 0; i_od < _od; i_od++) {
+            int out_i = 0;
+            for (int i = - _p; i < _h + _p; i += _s, out_i++) {
+                int out_j = 0;
+                for (int j = - _p; j < _w + _p; j += _s, out_j++) {
+                    // calculating delta for this patch
+                    for (int k = 0; k < _fh; k++) {
+                        // skip paddings
+                        int ii = i + k;
+                        int jj = j;
+                        int fw = _fw;
+                        // skip padding row
+                        if (ii < 0 || ii >= _h) continue;
+                        // skip padding area
+                        if (j < 0) { fw += j; jj = 0; } // left padding
+                        else if (j + fw >= _w) { fw = (_w - j); } // right padding
+                        // skip slice containing only paddings
+                        if (fw <= 0) continue;
+
+                        for (int i_d = 0; i_d < _d; i_d++) {
+                            vector_type d_slice(_fw, &d_3d(d, ii, jj));
+                            vector_type filter_slice(_fw, &_filter(i_od * d, k, 0));
+                            d_slice += filter_slice * dy_3d(i_od, out_i, out_j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void bprop_filter(vector_type &d) {
+        vector_type &dy = this->_dy;
+        nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
+
+        // prepare error volume of filter
+        d.resize(_od * _out_h * _out_w);
+        nd_array<numeric_type, 3> d_3d({_fd, _fh, _fw}, d.raw_data());
+        d_3d.fill(0);
+
+        // distribute errors to corresponding elements in filter volume
+        for (int i_od = 0; i_od < _od; i_od++) {
+            int out_i = 0;
+            for (int i = - _p; i < _h + _p; i += _s, out_i++) {
+                int out_j = 0;
+                for (int j = - _p; j < _w + _p; j += _s, out_j++) {
+                    // calculating delta for this patch
+                    for (int k = 0; k < _fh; k++) {
+                        // skip paddings
+                        int ii = i + k;
+                        int jj = j;
+                        int fw = _fw;
+                        // skip padding row
+                        if (ii < 0 || ii >= _h) continue;
+                        // skip padding area
+                        if (j < 0) { fw += j; jj = 0; } // left padding
+                        else if (j + fw >= _w) { fw = (_w - j); } // right padding
+                        // skip slice containing only paddings
+                        if (fw <= 0) continue;
+
+                        for (int i_d = 0; i_d < _d; i_d++) {
+                            vector_type input_slice(_fw, &_input(d, ii, jj));
+                            vector_type d_slice(_fw, &d_3d(i_od * d, k, 0));
+                            d_slice += input_slice * dy_3d(i_od, out_i, out_j);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void bprop_bias(vector_type &d) {
+        d.resize(_od);
+        vector_type &dy = this->_dy;
+        nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
+        for (int i_od = 0; i_od < _od; i_od++) {
+            numeric_type sum = 0;
+            matrix_type slice(_out_h, _out_w, &dy_3d(i_od, 0, 0));
+            d[i_od] = slice.sum();
+        }
+    } 
 
 protected:
     int _w, _h, _d;             // size of input volume
@@ -438,6 +538,7 @@ protected:
     int _od;                    // output depth (_od = _fd / _d)
     int _s;                     // stride size
     int _p;                     // size of zero padding
+    int _out_w, _out_h;         // output slice size
     nd_array<numeric_type, 3> _input;
     nd_array<numeric_type, 3> _filter;
     vector<numeric_type> _bias;

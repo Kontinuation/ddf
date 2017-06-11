@@ -254,6 +254,15 @@ struct nd_array_base {
         }
     }
 
+    // sum up all elements in this nd-array
+    numeric_type sum(void) {
+        numeric_type val = 0;
+        for (int i = 0; i < _buf_size; i++) {
+            val += _raw_data[i];
+        }
+        return val;
+    }
+
     void assert_same_size(const nd_array_base &v) const {
         assert(("dimension should match",
                 memcmp(_shape, v._shape,
