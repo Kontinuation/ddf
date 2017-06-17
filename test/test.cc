@@ -562,6 +562,109 @@ void test_expr_visitor(void) {
     // }
 }
 
+void test_conv_op_0(void)
+{
+    double x[30];
+    for (int i = 0; i < 30; i++) {
+        x[i] = i;
+    }
+
+    double c[12];
+    for (int i = 0; i < 12; i++) {
+        c[i] = i;
+    }
+
+    double b[1] = {0};
+
+    // ddf::matrix<double> mat_x(5, 6, x);
+    // ddf::matrix<double> mat_c(3, 4, c);
+    ddf::convolution<double> op_conv(
+        5, 6, 1,                // input
+        3, 4, 1,                // conv filters
+        1, 0);                  // stride, padding
+    
+    op_conv.prepare(0, ddf::vector<double>(30, x));
+    op_conv.prepare(1, ddf::vector<double>(12, c));
+    op_conv.prepare(2, ddf::vector<double>(1, b));
+    op_conv.size_f();
+
+    ddf::vector<double> out;
+    op_conv.f(out);
+    printf("conv: %s\n", out.to_string().c_str());
+}
+
+void test_conv_op_1(void)
+{
+    // example from http://cs231n.github.io/convolutional-networks/
+    double x[5 * 5 * 3] = {
+        // d0
+        0, 2, 2, 2, 2,
+        0, 2, 2, 1, 0,
+        2, 1, 2, 1, 1,
+        2, 1, 0, 2, 1,
+        2, 2, 2, 2, 2,
+        // d1
+        2, 2, 0, 2, 1,
+        0, 1, 1, 1, 0,
+        0, 0, 1, 1, 1,
+        2, 2, 2, 1, 1,
+        2, 2, 2, 0, 2,
+        // d2
+        1, 1, 1, 1, 0,
+        2, 0, 1, 1, 2,
+        1, 0, 2, 1, 0,
+        2, 0, 0, 2, 1,
+        0, 0, 1, 1, 2,
+    };
+    
+    double c[3 * 3 * 6] = {
+        // filter 0:
+        // d0
+        0, 0, -1,
+        1, -1, 1,
+        0, 1, 1,
+        // d1
+        0, -1, -1,
+        1, -1, 1,
+        1, 0, 1,
+        // d2
+        0, 1, 1,
+        1, 0, 1,
+        -1, 0, 0,
+
+        // filter 1:
+        // d0
+        -1, 1, 0,
+        0, 1, -1,
+        -1, -1, 0,
+        // d1
+        0, -1, 0,
+        -1, 0, 0,
+        -1, 0, 1,
+        // d2
+        1, 0, -1,
+        0, 0, 1,
+        1, 0, -1
+    };
+
+    double b[2] = {1, 0};
+
+    ddf::convolution<double> op_conv(
+        5, 5, 3,                // input
+        3, 3, 2,                // conv filters
+        2, 1);                  // stride, padding
+    
+    op_conv.prepare(0, ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+    op_conv.prepare(1, ddf::vector<double>(sizeof(c)/sizeof(c[0]), c));
+    op_conv.prepare(2, ddf::vector<double>(sizeof(b)/sizeof(b[0]), b));
+    op_conv.size_f();
+
+    ddf::vector<double> y;
+    op_conv.f(y);
+    ddf::nd_array<double, 3> out({2, 3, 3}, y.raw_data());
+    printf("conv: %s\n", out.to_string().c_str());    
+}
+
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
@@ -571,8 +674,10 @@ int main(int argc, char *argv[])
     test_array_opt();
     test_relu();
     test_expr();
-    // test_fg();
+    test_fg();
     test_expr_visitor<float>();
     test_expr_visitor<double>();
+    test_conv_op_0();
+    test_conv_op_1();
     return 0;
 }
