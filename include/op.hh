@@ -357,7 +357,8 @@ public:
     convolution(int w, int h, int d, int fw, int fh, int od, int stride, int padding)
         : math_op<numeric_type>("conv", 3),
           _w(w), _h(h), _d(d), _fw(fw), _fh(fh), _fd(_d * od), _od(od),
-          _s(stride), _p(padding) {
+          _s(stride), _p(padding),
+          _input({0,0,0}), _filter({0,0,0}) {
         if ((_w - _fw + _p + _p) % _s != 0 || 
             (_h - _fh + _p + _p) % _s != 0) {
             throw exception("convnet output does not fit");
@@ -381,6 +382,13 @@ public:
         }
     }
 
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _v_input;
+        else if (k_param == 1) return _v_filter;
+        else return _bias;
+    }
+ 
     int size_f() {
         if (_w * _h * _d != _v_input.size()) {
             throw exception(
@@ -471,9 +479,10 @@ public:
                         if (fw <= 0) continue;
 
                         for (int i_d = 0; i_d < _d; i_d++) {
-                            vector_type d_slice(_fw, &d_3d(d, ii, jj));
-                            vector_type filter_slice(_fw, &_filter(i_od * d, k, 0));
-                            d_slice += filter_slice * dy_3d(i_od, out_i, out_j);
+                            vector_type d_slice(_fw, &d_3d(i_d, ii, jj));
+                            vector_type filter_slice(_fw, &_filter(i_od * i_d, k, 0));
+                            // d_slice += filter_slice * dy_3d(i_od, out_i, out_j);
+                            filter_slice.mult_add(dy_3d(i_od, out_i, out_j), d_slice);
                         }
                     }
                 }
@@ -511,9 +520,10 @@ public:
                         if (fw <= 0) continue;
 
                         for (int i_d = 0; i_d < _d; i_d++) {
-                            vector_type input_slice(_fw, &_input(d, ii, jj));
-                            vector_type d_slice(_fw, &d_3d(i_od * d, k, 0));
-                            d_slice += input_slice * dy_3d(i_od, out_i, out_j);
+                            vector_type input_slice(_fw, &_input(i_d, ii, jj));
+                            vector_type d_slice(_fw, &d_3d(i_od * i_d, k, 0));
+                            // d_slice += input_slice * dy_3d(i_od, out_i, out_j);
+                            input_slice.mult_add(dy_3d(i_od, out_i, out_j), d_slice);
                         }
                     }
                 }
@@ -526,7 +536,6 @@ public:
         vector_type &dy = this->_dy;
         nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
         for (int i_od = 0; i_od < _od; i_od++) {
-            numeric_type sum = 0;
             matrix_type slice(_out_h, _out_w, &dy_3d(i_od, 0, 0));
             d[i_od] = slice.sum();
         }

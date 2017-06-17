@@ -308,6 +308,23 @@ struct nd_array : nd_array_base<_numeric_type, _n_dim> {
     }
 
     ND_ARRAY_COMMON_PROCEDURES(_n_dim);
+
+    
+    // member accessors, will return reference to the initial element of the
+    // slice if fewer dimension were specified
+    _numeric_type &operator() (int n0) const {
+        return nd_array_base<_numeric_type, _n_dim>::operator() (n0);
+    }
+    _numeric_type &operator() (int n0, int n1) const {
+        return nd_array_base<_numeric_type, _n_dim>::operator() (n0, n1);
+    }
+    _numeric_type &operator() (int n0, int n1, int n2) const {
+        return nd_array_base<_numeric_type, _n_dim>::operator() (n0, n1, n2);
+    }
+    _numeric_type &operator() (int n0, int n1, int n2, int n3) const {
+        return nd_array_base<_numeric_type, _n_dim>::operator() (n0, n1, n2, n3);
+    }
+
 };
 
 // special optimized version for 1-d arrays
