@@ -663,21 +663,68 @@ void test_conv_op_1(void)
     op_conv.f(y);
     ddf::nd_array<double, 3> out({2, 3, 3}, y.raw_data());
     printf("conv: %s\n", out.to_string().c_str());    
+
+    // test backprop
+    ddf::variable<double> *var_c =
+        new ddf::variable<double>("c",
+            ddf::vector<double>(sizeof(c)/sizeof(c[0]), c));
+    
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x",
+            ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+
+    ddf::variable<double> *var_b =
+        new ddf::variable<double>("b",
+            ddf::vector<double>(sizeof(b)/sizeof(b[0]), b));
+
+    double l[18] = {0};
+    l[2] = 1;
+    ddf::variable<double> *var_l = 
+        new ddf::variable<double>("l",
+            ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
+    
+    ddf::math_expr<double> *predict = new ddf::function_call<double>(
+        &op_conv, var_x, var_c, var_b);
+
+    predict->eval(y);
+    ddf::nd_array<double, 3> out_eval({2, 3, 3}, y.raw_data());
+    printf("conv prediction: %s\n", out_eval.to_string().c_str());
+
+    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+        new ddf::function_call<double>(&DS, 
+            predict, /* predict->clone() */
+            var_l));
+
+    loss->eval(y);
+    printf("loss: %s\n", y.to_string().c_str());
+
+    auto bias_diff = ddf::finite_diff(loss.get(), var_b);
+    printf("bias finite diff: %s\n", bias_diff.to_string().c_str());
+
+    // backprop gradient
+    ddf::backpropagation<double> bprop;
+    ddf::reset_delta<double> reset;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+
+    logging::info("bias bprop: %s\n", var_b->delta.to_string().c_str());
 }
 
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
-    test_nd_array();;
-    test_softmax();
-    test_matmul();
-    test_array_opt();
-    test_relu();
-    test_expr();
-    test_fg();
-    test_expr_visitor<float>();
-    test_expr_visitor<double>();
-    test_conv_op_0();
+    // test_nd_array();;
+    // test_softmax();
+    // test_matmul();
+    // test_array_opt();
+    // test_relu();
+    // test_expr();
+    // test_fg();
+    // test_expr_visitor<float>();
+    // test_expr_visitor<double>();
+    // test_conv_op_0();
     test_conv_op_1();
     return 0;
 }
