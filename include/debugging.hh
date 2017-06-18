@@ -33,6 +33,25 @@ matrix<numeric_type> finite_diff(
 }
 
 template <typename numeric_type>
+bool vector_diff(
+    const vector<numeric_type> &x, const vector<numeric_type> &y,
+    numeric_type delta = 1e-3) {
+    if (x.size() != y.size()) {
+        return true;
+    }
+
+    int vec_size = x.size();
+    for (int i = 0; i < vec_size; i++) {
+        numeric_type diff = x[i] - y[i];
+        if (diff > delta || diff < -delta) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+template <typename numeric_type>
 class dump_expr_as_dotfile : public math_expr_visitor<numeric_type> {
 public:
     dump_expr_as_dotfile(const char *filename)

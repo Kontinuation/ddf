@@ -447,7 +447,6 @@ public:
         } else if (k_param == 2) {
             bprop_bias(d);
         }
-        throw exception("not implemented yet");
     }
 
     void bprop_input(vector_type &d) {
@@ -495,35 +494,34 @@ public:
         nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
 
         // prepare error volume of filter
-        d.resize(_od * _out_h * _out_w);
-        nd_array<numeric_type, 3> d_3d({_od, _d, _fh, _fw}, d.raw_data());
-        d_3d.fill(0);
+        d.resize(_od * _d * _fh * _fw);
+        nd_array<numeric_type, 4> d_4d({_od, _d, _fh, _fw}, d.raw_data());
+        d_4d.fill(0);
 
         // distribute errors to corresponding elements in filter volume
         for (int i_od = 0; i_od < _od; i_od++) {
-            int out_i = 0;
-            for (int i = - _p; i < _h + _p; i += _s, out_i++) {
-                int out_j = 0;
-                for (int j = - _p; j < _w + _p; j += _s, out_j++) {
+            for (int i = - _p, i_out = 0; i_out < _out_h; i += _s, i_out++) {
+                for (int j = - _p, j_out = 0; j_out < _out_w; j += _s, j_out++) {
                     // calculating delta for this patch
                     for (int k = 0; k < _fh; k++) {
                         // skip paddings
                         int ii = i + k;
                         int jj = j;
                         int fw = _fw;
+                        int f_j = 0;
                         // skip padding row
                         if (ii < 0 || ii >= _h) continue;
                         // skip padding area
-                        if (j < 0) { fw += j; jj = 0; } // left padding
+                        if (j < 0) { fw += j; f_j -= j; jj = 0; } // left padding
                         else if (j + fw >= _w) { fw = (_w - j); } // right padding
                         // skip slice containing only paddings
                         if (fw <= 0) continue;
 
                         for (int i_d = 0; i_d < _d; i_d++) {
                             vector_type input_slice(fw, &_input(i_d, ii, jj));
-                            vector_type d_slice(fw, &d_3d(i_od * _od + i_d, k, 0));
+                            vector_type d_slice(fw, &d_4d(i_od, i_d, k, f_j));
                             // d_slice += input_slice * dy_3d(i_od, out_i, out_j);
-                            input_slice.mult_add(dy_3d(i_od, out_i, out_j), d_slice);
+                            input_slice.mult_add(dy_3d(i_od, i_out, j_out), d_slice);
                         }
                     }
                 }

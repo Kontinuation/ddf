@@ -701,6 +701,10 @@ void test_conv_op_1(void)
 
     auto bias_diff = ddf::finite_diff(loss.get(), var_b);
     printf("bias finite diff: %s\n", bias_diff.to_string().c_str());
+    auto input_diff = ddf::finite_diff(loss.get(), var_x);
+    printf("input finite diff: %s\n", input_diff.to_string().c_str());
+    auto filter_diff = ddf::finite_diff(loss.get(), var_c);
+    printf("filter finite diff: %s\n", filter_diff.to_string().c_str());
 
     // backprop gradient
     ddf::backpropagation<double> bprop;
@@ -710,7 +714,110 @@ void test_conv_op_1(void)
     loss->apply(&bprop);
 
     logging::info("bias bprop: %s\n", var_b->delta.to_string().c_str());
+    logging::info("input bprop: %s\n", var_x->delta.to_string().c_str());
+    logging::info("filter bprop: %s\n", var_c->delta.to_string().c_str());
+
+    logging::info("bias diff: %d\n", ddf::vector_diff(
+            var_b->delta, ddf::vector<double>(bias_diff.shape(1), bias_diff.raw_data())));
+    
+    logging::info("input diff: %d\n", ddf::vector_diff(
+            var_x->delta, ddf::vector<double>(input_diff.shape(1), input_diff.raw_data())));
+
+    logging::info("filter diff: %d\n", ddf::vector_diff(
+            var_c->delta, ddf::vector<double>(filter_diff.shape(1), filter_diff.raw_data())));
 }
+
+void test_conv_fc_relu(void)
+{        
+    ddf::convolution<double> op_conv(
+        5, 6, 3,                // input
+        3, 4, 2,                // conv filters
+        1, 0);                  // stride, padding
+
+    ddf::matrix_mult<double> matmul;
+    ddf::relu<double> relu_0;
+
+    ddf::variable<double> *var_c =
+        new ddf::variable<double>("c", ddf::vector<double>(72));
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x", ddf::vector<double>(90));
+    ddf::variable<double> *var_cb =
+        new ddf::variable<double>("cb", ddf::vector<double>(2));
+        
+    ddf::variable<double> *var_w =
+        new ddf::variable<double>("w", ddf::vector<double>(7 * 18));
+    ddf::variable<double> *var_b =
+        new ddf::variable<double>("b", ddf::vector<double>(7));
+    ddf::variable<double> *var_l =
+        new ddf::variable<double>("l", ddf::vector<double>(7));
+
+    var_c->value().fill_rand();
+    var_x->value().fill_rand();
+    var_cb->value().fill_rand();
+    var_w->value().fill_rand();
+    var_b->value().fill_rand();
+    var_l->value().fill(0);
+    var_l->value()[2] = 1;
+    
+    ddf::math_expr<double> *predict =
+        new ddf::addition<double>(
+            new ddf::function_call<double>(
+                &matmul,
+                var_w,
+                new ddf::function_call<double>(
+                    &relu_0,                
+                    new ddf::function_call<double>(
+                        &op_conv,
+                        var_x, var_c, var_cb))),
+            var_b);
+
+    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+        new ddf::function_call<double>(&DS, 
+            predict, /* predict->clone() */
+            var_l));
+
+    auto bias_diff = ddf::finite_diff(loss.get(), var_cb, 1e-6);
+    printf("conv bias finite diff: %s\n", bias_diff.to_string().c_str());
+    auto input_diff = ddf::finite_diff(loss.get(), var_x, 1e-6);
+    printf("conv input finite diff: %s\n", input_diff.to_string().c_str());
+    auto filter_diff = ddf::finite_diff(loss.get(), var_c, 1e-6);
+    printf("conv filter finite diff: %s\n", filter_diff.to_string().c_str());
+    auto w_diff = ddf::finite_diff(loss.get(), var_w, 1e-6);
+    printf("matmul w finite diff: %s\n", filter_diff.to_string().c_str());
+    auto b_diff = ddf::finite_diff(loss.get(), var_b, 1e-6);
+    printf("matmul b finite diff: %s\n", filter_diff.to_string().c_str());
+
+    // backprop gradient
+    ddf::backpropagation<double> bprop;
+    ddf::reset_delta<double> reset;
+    ddf::vector<double> y;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+
+    logging::info("conv bias bprop: %s\n", var_cb->delta.to_string().c_str());
+    logging::info("conv input bprop: %s\n", var_x->delta.to_string().c_str());
+    logging::info("conv filter bprop: %s\n", var_c->delta.to_string().c_str());
+    logging::info("matmul w bprop: %s\n", var_w->delta.to_string().c_str());
+    logging::info("matmul b bprop: %s\n", var_b->delta.to_string().c_str());
+
+    logging::info("conv bias diff: %d\n", ddf::vector_diff(
+            var_cb->delta, ddf::vector<double>(bias_diff.shape(1), bias_diff.raw_data())));
+    
+    logging::info("conv input diff: %d\n", ddf::vector_diff(
+            var_x->delta, ddf::vector<double>(input_diff.shape(1), input_diff.raw_data())));
+
+    logging::info("conv filter diff: %d\n", ddf::vector_diff(
+            var_c->delta, ddf::vector<double>(filter_diff.shape(1), filter_diff.raw_data())));
+
+    logging::info("matmul w diff: %d\n", ddf::vector_diff(
+            var_w->delta, ddf::vector<double>(w_diff.shape(1), w_diff.raw_data())));
+        
+    logging::info("matmul b diff: %d\n", ddf::vector_diff(
+            var_b->delta, ddf::vector<double>(b_diff.shape(1), b_diff.raw_data())));
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -726,5 +833,6 @@ int main(int argc, char *argv[])
     // test_expr_visitor<double>();
     // test_conv_op_0();
     test_conv_op_1();
+    test_conv_fc_relu();
     return 0;
 }
