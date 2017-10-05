@@ -74,9 +74,11 @@ public:
             _loss_expr->eval(y);
             _training_loss += y[0];
         }
+
+        this->dbg_dump();
     }
 
-    // calculate current training loss
+    // fetch current training loss
     virtual numeric_type loss(void) {
         return _training_loss;
     }
@@ -128,7 +130,9 @@ public:
         }
     }
 
+protected:
     void dbg_dump(void) {
+#ifdef DEBUG_BPROP
         logging::debug("loss_expr:");
         logging::debug("  %s", _loss_expr->to_string().c_str());
 
@@ -143,6 +147,7 @@ public:
             logging::debug("  %s: vector(%d)",
                 kv.first.c_str(), kv.second->value().size());
         }
+#endif
     }
 
 protected:

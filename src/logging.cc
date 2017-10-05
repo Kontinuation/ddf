@@ -6,6 +6,11 @@
 
 // global mutex for making our synchronous logging methods reentrant
 static std::mutex __s_logging_lock;
+static int __s_log_level = logging::INFO;
+
+void logging::set_log_level(logging::level lvl) {
+    __s_log_level = lvl;
+}
 
 // terminal controllers/colors
 #define TC_RESET     "\e[0m"
@@ -30,32 +35,20 @@ static std::mutex __s_logging_lock;
     __s_logging_lock.unlock();                  \
 	va_end (args)
 
-#define LOGGING_INTERFACE(method, heading)                              \
-    void logging::method(const char *format, ...) {                     \
-        BEGIN_LOGGING;                                                  \
-        printf(heading);                                                \
-        vprintf(format, args);                                          \
-        END_LOGGING;                                                    \
+#define LOGGING_INTERFACE(method, lvl, heading)     \
+    void logging::method(const char *format, ...) { \
+        if (__s_log_level >= lvl) {                 \
+            BEGIN_LOGGING;                          \
+            printf(heading);                        \
+            vprintf(format, args);                  \
+            END_LOGGING;                            \
+        }                                           \
     }
 
-#if 0
-LOGGING_INTERFACE(trace,    "[TRACE] " )
-LOGGING_INTERFACE(debug,    "[DEBUG] " TC_BOLD)
-#else
-void logging::trace(const char *, ...) { }
-void logging::debug(const char *, ...) { }
-#endif
-LOGGING_INTERFACE(info,     "[INFO]  " TC_DIM)
-LOGGING_INTERFACE(warning,  "[WARN]  " TC_YELLOW)
-LOGGING_INTERFACE(error,    "[ERROR] " TC_RED)
-LOGGING_INTERFACE(critical, "[CRIT]  " TC_RED TC_UNDERL)
-
-
-void logging::fatal(const char *format, ...)
-{
-	BEGIN_LOGGING;
-	printf("[FATAL] " TC_RED TC_BOLD);
-	vprintf(format, args);
-	END_LOGGING;
-	abort();
-}
+LOGGING_INTERFACE(debug,    DEBUG,    "[DEBUG] " TC_BOLD)
+LOGGING_INTERFACE(trace,    TRACE,    "[TRACE] " )
+LOGGING_INTERFACE(info,     INFO,     "[INFO]  " TC_DIM)
+LOGGING_INTERFACE(warning,  WARNING,  "[WARN]  " TC_YELLOW)
+LOGGING_INTERFACE(error,    ERROR,    "[ERROR] " TC_RED)
+LOGGING_INTERFACE(fatal,    FATAL,    "[FATAL] " TC_RED TC_BOLD)
+LOGGING_INTERFACE(critical, CRITICAL, "[CRIT]  " TC_RED TC_UNDERL)

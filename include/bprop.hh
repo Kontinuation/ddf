@@ -22,7 +22,10 @@ public:
         for (size_t k = 0; k < n_args; k++) {
             vector<numeric_type> &d = expr->_dxs[k];
             expr->_op->bprop(k, d);
-            // printf("expr %s bprop[%zu]: %s\n", expr->to_string().c_str(), k, d.to_string().c_str());
+#ifdef DEBUG_BPROP
+            logging::debug("expr %s bprop[%zu]: %s\n",
+                expr->to_string().c_str(), k, d.to_string().c_str());
+#endif
             accum_delta(expr->_args[k]->delta, d);
         }
 

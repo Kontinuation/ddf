@@ -109,7 +109,6 @@ int main(int argc, char *argv[]) {
             {"l", ls }
         };
         optimizer.minimize(loss.get(), &feed_dict);
-        optimizer.dbg_dump();
 
         // initial loss
         float training_loss = optimizer.loss();

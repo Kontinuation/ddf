@@ -227,7 +227,8 @@ public:
                 d[i] = _exp_w[i] - _l[i];
             }
         } else {
-            // throw exception("bprop of label is not implemented");
+            // bprop of label _l is not useful since label should always be a
+            // constant, so bprop of _l is not implemented
         }
     }
 
@@ -551,6 +552,14 @@ protected:
     vector<numeric_type> _bias;
     vector<numeric_type> _v_input;
     vector<numeric_type> _v_filter;
+};
+
+// Pooling operator squeezes deep tensors to shallow ones
+template <typename numeric_type>
+class pooling: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
 };
 
 } // end namespace ddf
