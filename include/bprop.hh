@@ -13,7 +13,6 @@ public:
     virtual void apply(constant<numeric_type> *expr) {}
     virtual void apply(identity<numeric_type> *expr) {}
     virtual void apply(variable<numeric_type> *expr) {}
-    virtual void apply(dfunction_call<numeric_type> *expr) {}
     
     virtual void apply(function_call<numeric_type> *expr) {
         // accumulate delta
@@ -65,15 +64,7 @@ class reset_delta : public math_expr_visitor<numeric_type> {
     virtual void apply(variable<numeric_type> *expr) {
         expr->delta.fill(0);
     }
-    virtual void apply(dfunction_call<numeric_type> *expr) {
-        expr->delta.fill(0);
-        expr->_d_arg->apply(this);
-        size_t n_args = expr->_args.size();
-        for (size_t k = 0; k < n_args; k++) {
-            expr->_args[k]->apply(this);
-        }
-    }
-    
+
     virtual void apply(function_call<numeric_type> *expr) {
         expr->delta.fill(0);
         size_t n_args = expr->_args.size();

@@ -1,6 +1,7 @@
 #ifndef _CHECK_SIZE_H_
 #define _CHECK_SIZE_H_
 
+#include <map>
 #include "expr.hh"
 
 namespace ddf {
@@ -22,17 +23,6 @@ public:
     }
     
     virtual void apply(function_call<numeric_type> *expr) {
-        int n_args = (int) expr->_args.size();
-        for (int k = 0; k < n_args; k++) {
-            auto &arg = expr->_args[k];
-            int size_arg = size_of_expr(arg.get());
-            expr->_op->prepare(k, vector<numeric_type>(size_arg));
-        }
-        _expr_size[expr] = expr->_op->size_f();
-    }
-    
-    virtual void apply(dfunction_call<numeric_type> *expr) {
-        expr->_d_arg->apply(this);
         int n_args = (int) expr->_args.size();
         for (int k = 0; k < n_args; k++) {
             auto &arg = expr->_args[k];

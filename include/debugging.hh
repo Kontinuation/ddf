@@ -93,24 +93,6 @@ public:
         }
     }
     
-    virtual void apply(dfunction_call<numeric_type> *expr) {
-        _exprs.insert(expr);
-        _ofs << "  addr_" << expr << " [label=\"dfunc "
-             << expr->to_string() << "\"];\n";
-        _ofs << "  addr_" << expr
-             << " -> addr_" << expr->_d_arg << ";\n";
-        if (_exprs.find(expr->_d_arg.get()) == _exprs.end()) {
-            expr->_d_arg->apply(this);
-        }
-        for (auto &arg: expr->_args) {
-            _ofs << "  addr_" << expr
-                 << " -> addr_" << arg.get() << ";\n";
-            if (_exprs.find(arg.get()) == _exprs.end()) {
-                arg->apply(this);
-            }
-        }
-    }
-    
     virtual void apply(addition<numeric_type> *expr) {
         _exprs.insert(expr);
         _ofs << "  addr_" << expr << " [label=\"add "

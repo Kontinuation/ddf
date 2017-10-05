@@ -29,13 +29,6 @@ public:
         }
     }
     
-    virtual void apply(dfunction_call<numeric_type> *expr) {
-        expr->_d_arg->apply(this);
-        for (auto &arg: expr->_args) {
-            arg->apply(this);
-        }
-    }
-    
     virtual void apply(addition<numeric_type> *expr) {
         expr->_a->apply(this);
         expr->_b->apply(this);

@@ -118,11 +118,6 @@ void test_expr_visitor(void) {
             predict, /* predict->clone() */
             var_l));
 
-    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_dw0(loss->derivative("w0"));
-    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_db0(loss->derivative("b0"));
-    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_dw1(loss->derivative("w1"));
-    std::shared_ptr<ddf::math_expr<numeric_type> > dloss_db1(loss->derivative("b1"));
-
     // backprop gradient
     ddf::backpropagation<numeric_type> bprop;
     ddf::reset_delta<numeric_type> reset;
@@ -132,51 +127,27 @@ void test_expr_visitor(void) {
     loss->apply(&bprop);
 
     ddf::matrix<numeric_type> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
-    ddf::matrix<numeric_type> D_dw0_auto;
-    dloss_dw0->grad(D_dw0_auto);
-    bool w0_finite_vs_auto = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_dw0.shape(1), D_dw0.raw_data()),
-        ddf::vector<numeric_type>(D_dw0_auto.shape(1), D_dw0_auto.raw_data()));
     bool w0_finite_vs_bprop = ddf::vector_diff(
         ddf::vector<numeric_type>(D_dw0.shape(1), D_dw0.raw_data()),
         var_w0->delta);
-    expect_true(!w0_finite_vs_auto, "auto differentiation of w0");
     expect_true(!w0_finite_vs_bprop, "back propagation of w0");
 
     ddf::matrix<numeric_type> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
-    ddf::matrix<numeric_type> D_dw1_auto;
-    dloss_dw1->grad(D_dw1_auto);
-    bool w1_finite_vs_auto = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_dw1.shape(1), D_dw1.raw_data()),
-        ddf::vector<numeric_type>(D_dw1_auto.shape(1), D_dw1_auto.raw_data()));
     bool w1_finite_vs_bprop = ddf::vector_diff(
         ddf::vector<numeric_type>(D_dw1.shape(1), D_dw1.raw_data()),
         var_w1->delta);
-    expect_true(!w1_finite_vs_auto, "auto differentiation of w1");
     expect_true(!w1_finite_vs_bprop, "back propagation of w1");
 
     ddf::matrix<numeric_type> D_db0 = ddf::finite_diff(loss.get(), var_b0);
-    ddf::matrix<numeric_type> D_db0_auto;
-    dloss_db0->grad(D_db0_auto);
-    bool b0_finite_vs_auto = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_db0.shape(1), D_db0.raw_data()),
-        ddf::vector<numeric_type>(D_db0_auto.shape(1), D_db0_auto.raw_data()));
     bool b0_finite_vs_bprop = ddf::vector_diff(
         ddf::vector<numeric_type>(D_db0.shape(1), D_db0.raw_data()),
         var_b0->delta);
-    expect_true(!b0_finite_vs_auto, "auto differentiation of b0");
     expect_true(!b0_finite_vs_bprop, "back propagation of b0");
     
     ddf::matrix<numeric_type> D_db1 = ddf::finite_diff(loss.get(), var_b1);
-    ddf::matrix<numeric_type> D_db1_auto;
-    dloss_db1->grad(D_db1_auto);
-        bool b1_finite_vs_auto = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_db1.shape(1), D_db1.raw_data()),
-        ddf::vector<numeric_type>(D_db1_auto.shape(1), D_db1_auto.raw_data()));
     bool b1_finite_vs_bprop = ddf::vector_diff(
         ddf::vector<numeric_type>(D_db1.shape(1), D_db1.raw_data()),
         var_b1->delta);
-    expect_true(!b1_finite_vs_auto, "auto differentiation of b1");
     expect_true(!b1_finite_vs_bprop, "back propagation of b1");
 }
 
