@@ -225,6 +225,9 @@ public:
           _w(w), _h(h), _d(d), _fw(fw), _fh(fh), _od(od),
           _s(stride), _p(padding),
           _input({0,0,0}), _filter({0,0,0,0}) {
+        if (_w - _fw + _p + _p <= 0 || _h - _fh + _p + _p <= 0) {
+            throw exception("convnet input size is too small");
+        }
         if ((_w - _fw + _p + _p) % _s != 0 || 
             (_h - _fh + _p + _p) % _s != 0) {
             throw exception("convnet filter size does not fit with input");
@@ -419,12 +422,83 @@ protected:
     vector<numeric_type> _v_filter;
 };
 
-// Pooling operator squeezes deep tensors to shallow ones
+// Pooling operator squeezes big tensors to smaller ones
 template <typename numeric_type>
 class pooling: public math_op<numeric_type> {
 public:
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
+
+    pooling(int w, int h, int d, int extent, int stride, int padding)
+        : math_op<numeric_type>("pool", 1),
+          _w(w), _h(h), _d(d), _ks(extent), _s(stride), _p(padding) {
+        if (_w + _p + _p < _ks || h + _p + _p < _ks) {
+            throw exception("pooling input size is too small");
+        }
+        if ((_w - _ks + _p + _p) % _s != 0 ||
+            (_h - _ks + _p + _p) % _s != 0) {
+            throw exception(
+                "pooling input size does not fit with extent and stride");
+        }
+        _out_w = (_w - _ks + _p + _p) / _s + 1;
+        _out_h = (_h - _ks + _p + _p) / _s + 1;
+        _out_d = d;
+    }
+
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        _x = v;
+        _input = nd_array<numeric_type, 3>({_d, _h, _w}, v.raw_data());
+    }
+
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _x;
+        else return vector_type();
+    }
+
+    int size_f() {
+        return _x.size();
+    }
+
+    void f(vector_type &y) {
+        y.resize(_out_w * _out_h * _out_d);
+        nd_array<numeric_type, 3> out({ _out_d, _out_h, _out_w}, y.raw_data());
+        for (int i_od = 0; i_od < _out_d; i_od++) {
+            for (int i = - _p, i_out = 0; i_out < _out_h; i += _s, i_out++) {
+                for (int j = - _p, j_out = 0; j_out < _out_w; j += _s, j_out++) {
+                    // calculating inner product of input volume slice and
+                    // filter volume
+                    numeric_type max_val = 0;
+                    for (int k = 0; k < _ks; k++) {
+                        // skip paddings
+                        int ii = i + k;
+                        int jj = j;
+                        int fw = _ks;
+                        // skip padding row
+                        if (ii < 0 || ii >= _h) continue;
+                        // skip padding area
+                        if (j < 0) { fw += j; jj = 0; } // left padding
+                        else if (j + fw >= _w) { fw = (_w - j); } // right padding
+                        // find maximum value in this tile
+                        for ( ; fw > 0; --fw, ++jj) {
+                            numeric_type val = _input(i_od, ii, jj);
+                            max_val = (val > max_val? val: max_val);
+                        }
+                    }
+                    out(i_od, i_out, j_out) = max_val;
+                }
+            }
+        }
+    }
+
+protected:
+    int _w, _h, _d;             // input size
+    int _out_w, _out_h, _out_d; // output size
+    int _ks, _s, _p;            // hyperparams _ks: extent; _s: stride; _p:
+                                // zero-padding
+    vector_type _x;             // input data
+    nd_array<numeric_type, 3> _input; // input data in 3d tensor view
 };
 
 } // end namespace ddf
