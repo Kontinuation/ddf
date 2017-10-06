@@ -16,6 +16,69 @@ void show_fea_as_image(const float *fea, int w, int h, float threshold = -0.2) {
 
 volatile bool g_signal_quit = false;
 
+template <typename numeric_type>
+ddf::math_expr<numeric_type> *fc_model(
+    const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls, int n_hidden)
+{
+    // -- identify problem size --
+    int dimension = xs.shape(1);
+    int n_classes = ls.shape(1);
+        
+    // -- prepare deep model --
+    int len_w0 = n_hidden * dimension;
+    int len_b0 = n_hidden;
+    int len_w1 = n_classes * n_hidden;
+    int len_b1 = n_classes;
+
+    ddf::variable<numeric_type> *var_w0 =
+        new ddf::variable<numeric_type>("w0", ddf::vector<numeric_type>(len_w0));
+    ddf::variable<numeric_type> *var_b0 =
+        new ddf::variable<numeric_type>("b0", ddf::vector<numeric_type>(len_b0));
+    ddf::variable<numeric_type> *var_w1 =
+        new ddf::variable<numeric_type>("w1", ddf::vector<numeric_type>(len_w1));
+    ddf::variable<numeric_type> *var_b1 =
+        new ddf::variable<numeric_type>("b1", ddf::vector<numeric_type>(len_b1));
+
+    // initial value of hyper parameters
+    var_w0->value().fill_rand();
+    var_b0->value().fill_rand();
+    var_w1->value().fill_rand();
+    var_b1->value().fill_rand();
+        
+    ddf::variable<numeric_type> *var_x = 
+        new ddf::variable<numeric_type>("x", ddf::vector<numeric_type>(dimension));
+    ddf::variable<numeric_type> *var_l = 
+        new ddf::variable<numeric_type>("l", ddf::vector<numeric_type>(n_classes));
+
+    // predict: w1 * (relu(w0 * x + b0)) + b1
+    
+    // ddf::matrix_mult<numeric_type> matmul_0, matmul_1;
+    auto matmul_0 = new ddf::matrix_mult<numeric_type>();
+    auto matmul_1 = new ddf::matrix_mult<numeric_type>();
+    auto relu_0 = new ddf::relu<numeric_type>();
+    auto predict =
+        new ddf::addition<numeric_type>(
+            new ddf::function_call<numeric_type>(
+                matmul_1,
+                var_w1, 
+                new ddf::function_call<numeric_type>(
+                    relu_0,
+                    new ddf::addition<numeric_type>(
+                        new ddf::function_call<numeric_type>(
+                            matmul_0,
+                            var_w0, 
+                            var_x),
+                        var_b0))),
+            var_b1);
+
+    // loss: DS(predict, l)
+    auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
+    auto loss = new ddf::function_call<numeric_type>(
+        DS, predict, var_l);
+
+    return loss;
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 4) {
         printf(
@@ -37,63 +100,9 @@ int main(int argc, char *argv[]) {
         int n_samples = d_train.n_samples();
         int n_classes = d_train.n_classes();
 
-        // -- prepare deep model --
-        int n_hidden = 20;
-        int len_w0 = n_hidden * dimension;
-        int len_b0 = n_hidden;
-        int len_w1 = n_classes * n_hidden;
-        int len_b1 = n_classes;
-
-        ddf::variable<float> *var_w0 =
-            new ddf::variable<float>("w0", ddf::vector<float>(len_w0));
-        ddf::variable<float> *var_b0 =
-            new ddf::variable<float>("b0", ddf::vector<float>(len_b0));
-        ddf::variable<float> *var_w1 =
-            new ddf::variable<float>("w1", ddf::vector<float>(len_w1));
-        ddf::variable<float> *var_b1 =
-            new ddf::variable<float>("b1", ddf::vector<float>(len_b1));
-
-        // initial value of hyper parameters
-        var_w0->value().fill_rand();
-        var_b0->value().fill_rand();
-        var_w1->value().fill_rand();
-        var_b1->value().fill_rand();
-        
-        ddf::variable<float> *var_x = 
-            new ddf::variable<float>("x", ddf::vector<float>(dimension));
-        ddf::variable<float> *var_l = 
-            new ddf::variable<float>("l", ddf::vector<float>(n_classes));
-
-        // predict: w1 * (relu(w0 * x + b0)) + b1
-        ddf::matrix_mult<float> matmul_0, matmul_1;
-        ddf::relu<float> relu_0;
-        ddf::math_expr<float> *predict =
-            new ddf::addition<float>(
-                new ddf::function_call<float>(
-                    &matmul_1,
-                    var_w1, 
-                    new ddf::function_call<float>(
-                        &relu_0,
-                        new ddf::addition<float>(
-                            new ddf::function_call<float>(
-                                &matmul_0,
-                                var_w0, 
-                                var_x),
-                            var_b0))),
-                var_b1);
-
-        // loss: DS(predict, l)
-        ddf::softmax_cross_entropy_with_logits<float> DS;
-        auto loss = std::shared_ptr<ddf::math_expr<float> >(
-            new ddf::function_call<float>(&DS, 
-                predict, /* predict->clone() */
-                var_l));
-        
         // truncate the training data for faster shakedown run
         n_samples = std::min(1000, n_samples);
-                
-        // -- train this model using optimizer defined in train.hh --
-        
+
         // prepare feeded data 
         ddf::matrix<float> xs(n_samples, dimension, fea);
         ddf::matrix<float> ls(n_samples, n_classes);
@@ -101,6 +110,9 @@ int main(int argc, char *argv[]) {
         for (int k = 0; k < n_samples; k++) {
             ls(k, label[k]) = 1;
         }
+
+        // -- train this model using optimizer defined in train.hh --
+        auto loss = std::unique_ptr<ddf::math_expr<float> >(fc_model(xs, ls, 20));
         
         // construct optimizer
         ddf::optimizer_bprop<float> optimizer;
