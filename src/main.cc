@@ -151,6 +151,13 @@ ddf::math_expr<numeric_type> *conv_model(
         2, 2, 10,                // input
         2, 1, 0);                // sx, stride, padding
 
+    
+    // fc: 10 => 10
+    auto fc = new ddf::matrix_mult<numeric_type>();
+    ddf::variable<numeric_type> *var_w =
+        new ddf::variable<numeric_type>(
+            "w", ddf::vector<numeric_type>(100));
+
     // initial value of hyper parameters
     var_c0->value().fill_rand();
     var_b0->value().fill_rand();
@@ -158,29 +165,86 @@ ddf::math_expr<numeric_type> *conv_model(
     var_b1->value().fill_rand();
     var_c2->value().fill_rand();
     var_b2->value().fill_rand();
+    var_w->value().fill_rand();
+
+    auto relu_0 = new ddf::relu<numeric_type>();
+    auto relu_1 = new ddf::relu<numeric_type>();
+    auto relu_2 = new ddf::relu<numeric_type>();
     
     // predict: conv0 -> pool0 -> conv1 -> pool1 -> conv2 -> pool2
     ddf::math_expr<numeric_type> *predict =
-        new ddf::function_call<numeric_type>(
-            pool_2,
+        // new ddf::function_call<numeric_type>(
+        //     fc,
+        //     var_w,
             new ddf::function_call<numeric_type>(
-                conv_2, 
+                pool_2,
                 new ddf::function_call<numeric_type>(
-                    pool_1,
+                    relu_2,
                     new ddf::function_call<numeric_type>(
-                        conv_1, 
+                        conv_2,
                         new ddf::function_call<numeric_type>(
-                            pool_0, 
+                            pool_1,
                             new ddf::function_call<numeric_type>(
-                                conv_0,
-                                var_x, var_c0, var_b0)),
-                        var_c1, var_b1)),
-                var_c2, var_b2));
+                                relu_1,
+                                new ddf::function_call<numeric_type>(
+                                    conv_1,
+                                    new ddf::function_call<numeric_type>(
+                                        pool_0, 
+                                        new ddf::function_call<numeric_type>(
+                                            relu_0, 
+                                            new ddf::function_call<numeric_type>(
+                                                conv_0,
+                                                var_x, var_c0, var_b0))),
+                                    var_c1, var_b1))),
+                        var_c2, var_b2)));
         
     // loss: DS(predict, l)
     auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
     auto loss = new ddf::function_call<numeric_type>(
         DS, predict, var_l);
+
+
+#if 0
+    // verify
+    var_x->value().fill_rand();
+    var_l->value().fill(0);
+    var_l->value()[2] = 1.0;
+
+    // backprop gradient
+    ddf::backpropagation<numeric_type> bprop;
+    ddf::reset_delta<numeric_type> reset;
+    ddf::vector<numeric_type> y;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+
+    auto diff_c0 = ddf::finite_diff(loss, var_c0);
+    auto diff_c1 = ddf::finite_diff(loss, var_c1);
+    auto diff_c2 = ddf::finite_diff(loss, var_c2);
+
+    printf("diff_c0: %s\n", diff_c0.to_string().c_str());
+    printf("bprop_c0: %s\n", var_c0->delta.to_string().c_str());
+    
+    printf("diff_c1: %s\n", diff_c1.to_string().c_str());
+    printf("bprop_c1: %s\n", var_c1->delta.to_string().c_str());
+        
+    printf("diff_c2: %s\n", diff_c2.to_string().c_str());
+    printf("bprop_c2: %s\n", var_c2->delta.to_string().c_str());
+
+
+    auto diff_b0 = ddf::finite_diff(loss, var_b0);
+    auto diff_b1 = ddf::finite_diff(loss, var_b1);
+    auto diff_b2 = ddf::finite_diff(loss, var_b2);
+    
+    printf("diff_b0: %s\n", diff_b0.to_string().c_str());
+    printf("bprop_b0: %s\n", var_b0->delta.to_string().c_str());
+    
+    printf("diff_b1: %s\n", diff_b1.to_string().c_str());
+    printf("bprop_b1: %s\n", var_b1->delta.to_string().c_str());
+        
+    printf("diff_b2: %s\n", diff_b2.to_string().c_str());
+    printf("bprop_b2: %s\n", var_b2->delta.to_string().c_str());
+#endif
 
     return loss;
 }
