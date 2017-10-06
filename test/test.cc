@@ -94,27 +94,28 @@ void test_expr_visitor(void) {
     val_l[0] = 1;
 
     // predict: w1 * (relu(w0 * x + b0)) + b1
-    ddf::matrix_mult<numeric_type> matmul_0, matmul_1;
-    ddf::relu<numeric_type> relu_0;
+    auto matmul_0 = new ddf::matrix_mult<numeric_type>();
+    auto matmul_1 = new ddf::matrix_mult<numeric_type>();
+    auto relu_0 = new ddf::relu<numeric_type>();
     ddf::math_expr<numeric_type> *predict =
         new ddf::addition<numeric_type>(
             new ddf::function_call<numeric_type>(
-                &matmul_1,
+                matmul_1,
                 var_w1, 
                 new ddf::function_call<numeric_type>(
-                    &relu_0,
+                    relu_0,
                     new ddf::addition<numeric_type>(
                         new ddf::function_call<numeric_type>(
-                            &matmul_0,
+                            matmul_0,
                             var_w0, 
                             var_x),
                         var_b0))),
             var_b1);
 
     // loss: DS(predict, l)
-    ddf::softmax_cross_entropy_with_logits<numeric_type> DS;
+    auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
     auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
-        new ddf::function_call<numeric_type>(&DS, 
+        new ddf::function_call<numeric_type>(DS, 
             predict, /* predict->clone() */
             var_l));
 
@@ -296,9 +297,9 @@ void test_conv_op_1(void)
         !ddf::vector_diff(ddf::vector<double>(18, (double *) expected), y),
         "evaluation of convolution operator");
 
-    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::shared_ptr<ddf::math_expr<double> >(
-        new ddf::function_call<double>(&DS, 
+        new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
 
@@ -335,13 +336,13 @@ void test_conv_op_1(void)
 
 void test_conv_fc_relu(void)
 {        
-    ddf::convolution<double> op_conv(
+    auto op_conv = new ddf::convolution<double>(
         5, 6, 3,                // input
         3, 4, 2,                // conv filters
         1, 0);                  // stride, padding
 
-    ddf::matrix_mult<double> matmul;
-    ddf::relu<double> relu_0;
+    auto matmul = new ddf::matrix_mult<double>();
+    auto relu_0 = new ddf::relu<double>();
 
     ddf::variable<double> *var_c =
         new ddf::variable<double>("c", ddf::vector<double>(72));
@@ -368,18 +369,18 @@ void test_conv_fc_relu(void)
     ddf::math_expr<double> *predict =
         new ddf::addition<double>(
             new ddf::function_call<double>(
-                &matmul,
+                matmul,
                 var_w,
                 new ddf::function_call<double>(
-                    &relu_0,                
+                    relu_0,
                     new ddf::function_call<double>(
-                        &op_conv,
+                        op_conv,
                         var_x, var_c, var_cb))),
             var_b);
 
-    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::shared_ptr<ddf::math_expr<double> >(
-        new ddf::function_call<double>(&DS, 
+        new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
 
@@ -490,9 +491,9 @@ void test_pool_op()
         !ddf::vector_diff(ddf::vector<double>(27, (double *) expected), y),
         "evaluation of pooling operator");
 
-    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::shared_ptr<ddf::math_expr<double> >(
-        new ddf::function_call<double>(&DS, 
+        new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
 
@@ -535,9 +536,9 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
     ddf::math_expr<double> *predict = new ddf::function_call<double>(
         &op_pool, var_x);
 
-    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::shared_ptr<ddf::math_expr<double> >(
-        new ddf::function_call<double>(&DS, 
+        new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
 
