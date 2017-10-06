@@ -469,7 +469,6 @@ void test_pool_op()
     ddf::variable<double> *var_x =
         new ddf::variable<double>("x",
             ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
-    // var_x->value().fill_rand();
 
     double l[27] = {0};
     l[2] = 1;
@@ -516,23 +515,22 @@ void test_pool_op()
     expect_true(!b_input_diff, "pooling bprop input diff");
 }
 
-void test_pool_op_1(void)
+void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
 {
-    double x[5 * 5 * 3];
+    ddf::pooling<double> op_pool(
+        w, h, d,                  // input size
+        extent, stride, padding); // extent, stride, padding
+
+    int size_output = op_pool.size_f();
+    
     ddf::variable<double> *var_x =
-        new ddf::variable<double>("x",
-            ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+        new ddf::variable<double>("x", ddf::vector<double>(w * h * d));
     var_x->value().fill_rand();
 
-    double l[27] = {0};
-    l[2] = 1;
     ddf::variable<double> *var_l = 
-        new ddf::variable<double>("l",
-            ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
-
-    ddf::pooling<double> op_pool(
-        5, 5, 3,                // input size
-        3, 2, 1);               // extent, stride, padding
+        new ddf::variable<double>("l", ddf::vector<double>(size_output));
+    var_l->value().fill(0);
+    var_l->value()[2] = 1;
 
     ddf::math_expr<double> *predict = new ddf::function_call<double>(
         &op_pool, var_x);
@@ -575,8 +573,9 @@ int main(int argc, char *argv[])
     test_conv_fc_relu();
     test_conv_fc_relu();
     test_pool_op();
-    test_pool_op_1();
-    test_pool_op_1();
-    test_pool_op_1();
+    test_pool_op_1(5, 5, 3, 3, 2, 1);
+    test_pool_op_1(5, 5, 3, 3, 2, 0);
+    test_pool_op_1(4, 4, 1, 2, 1, 0);
+    test_pool_op_1(4, 4, 1, 3, 1, 0);
     return 0;
 }

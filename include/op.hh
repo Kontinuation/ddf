@@ -225,6 +225,9 @@ public:
           _w(w), _h(h), _d(d), _fw(fw), _fh(fh), _od(od),
           _s(stride), _p(padding),
           _input({0,0,0}), _filter({0,0,0,0}) {
+        if (_p >= _s) {
+            throw exception("pooling padding size >= stride size");
+        }
         if (_w - _fw + _p + _p <= 0 || _h - _fh + _p + _p <= 0) {
             throw exception("convnet input size is too small");
         }
@@ -433,6 +436,9 @@ public:
         : math_op<numeric_type>("pool", 1),
           _w(w), _h(h), _d(d), _ks(extent), _s(stride), _p(padding),
           _input({0,0,0}) {
+        if (_p >= _s) {
+            throw exception("pooling padding size >= stride size");
+        }
         if (_w + _p + _p < _ks || h + _p + _p < _ks) {
             throw exception("pooling input size is too small");
         }
