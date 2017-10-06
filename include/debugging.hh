@@ -11,17 +11,18 @@ template <typename numeric_type>
 matrix<numeric_type> finite_diff(
     math_expr<numeric_type> *expr, variable<numeric_type> *var,
     numeric_type delta = 1e-3) {
-    vector<numeric_type> expr_val;
+    vector<numeric_type> expr_val, expr_val1;
     expr->eval(expr_val);
     auto &val = var->value();
 
     matrix<numeric_type> ret(expr_val.size(), val.size());
-    numeric_type multiplier = 1 / delta;
+    numeric_type multiplier = 0.5 / delta;
         
     for (int i = 0; i < val.size(); i++) {
-        vector<numeric_type> expr_val1;
         numeric_type tmp = val[i];
-        val[i] += delta;
+        val[i] = tmp - delta;
+        expr->eval(expr_val);
+        val[i] = tmp + delta;
         expr->eval(expr_val1);
         expr_val1 -= expr_val;
         expr_val1 *= multiplier;
