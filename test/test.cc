@@ -435,5 +435,7 @@ int main(int argc, char *argv[])
     test_conv_op_0();
     test_conv_op_1();
     test_conv_fc_relu();
+    test_conv_fc_relu();
+    test_conv_fc_relu();
     return 0;
 }

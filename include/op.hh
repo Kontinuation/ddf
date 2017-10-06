@@ -327,7 +327,7 @@ public:
         nd_array<numeric_type, 3> d_3d({_d, _h, _w}, d.raw_data());
         d_3d.fill(0);
 
-        // distribute errors to corresponding elements in filter volume
+        // distribute errors to corresponding elements in input volume
         for (int i_od = 0; i_od < _od; i_od++) {
             for (int i = - _p, i_out = 0; i_out < _out_h; i += _s, i_out++) {
                 for (int j = - _p, j_out = 0; j_out < _out_w; j += _s, j_out++) {
@@ -467,9 +467,8 @@ public:
         for (int i_od = 0; i_od < _out_d; i_od++) {
             for (int i = - _p, i_out = 0; i_out < _out_h; i += _s, i_out++) {
                 for (int j = - _p, j_out = 0; j_out < _out_w; j += _s, j_out++) {
-                    // calculating inner product of input volume slice and
-                    // filter volume
-                    numeric_type max_val = 0;
+                    // calculate maximum value in this tile
+                    numeric_type max_val = std::numeric_limits<numeric_type>::lowest();
                     for (int k = 0; k < _ks; k++) {
                         // skip paddings
                         int ii = i + k;
@@ -480,13 +479,59 @@ public:
                         // skip padding area
                         if (j < 0) { fw += j; jj = 0; } // left padding
                         else if (j + fw >= _w) { fw = (_w - j); } // right padding
-                        // find maximum value in this tile
+                        // find maximum value in this row
                         for ( ; fw > 0; --fw, ++jj) {
                             numeric_type val = _input(i_od, ii, jj);
                             max_val = (val > max_val? val: max_val);
                         }
                     }
                     out(i_od, i_out, j_out) = max_val;
+                }
+            }
+        }
+    }
+
+    void bprop_input(vector_type &d) {
+        vector_type &dy = this->_dy;
+        nd_array<numeric_type, 3> dy_3d({_out_d, _out_h, _out_w}, dy.raw_data());
+
+        // prepare error volume of filter
+        d.resize(_d * _h * _w);
+        nd_array<numeric_type, 3> d_3d({_d, _h, _w}, d.raw_data());
+        d_3d.fill(0);
+
+        // route errors to corresponding elements in input volume
+        for (int i_od = 0; i_od < _out_d; i_od++) {
+            for (int i = - _p, i_out = 0; i_out < _out_h; i += _s, i_out++) {
+                for (int j = - _p, j_out = 0; j_out < _out_w; j += _s, j_out++) {
+                    // calculate the location of the maximum value in this tile
+                    numeric_type max_val = std::numeric_limits<numeric_type>::lowest();
+                    int i_max = -1, j_max = -1;
+                    for (int k = 0; k < _ks; k++) {
+                        // skip paddings
+                        int ii = i + k;
+                        int jj = j;
+                        int fw = _ks;
+                        // skip padding row
+                        if (ii < 0 || ii >= _h) continue;
+                        // skip padding area
+                        if (j < 0) { fw += j; jj = 0; } // left padding
+                        else if (j + fw >= _w) { fw = (_w - j); } // right padding
+                        // find maximum value in this row
+                        for ( ; fw > 0; --fw, ++jj) {
+                            numeric_type val = _input(i_od, ii, jj);
+                            if (val > max_val) {
+                                max_val = val;
+                                i_max = ii;
+                                j_max = jj;
+                            }
+                        }
+                    }
+
+                    // accumulate error on that input cell
+                    if (i_max >= 0 && j_max >= 0) {
+                        d_3d(i_od, i_max, j_max) += dy_3d(i_od, i_out, j_out);
+                    }
                 }
             }
         }
