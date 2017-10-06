@@ -10,7 +10,7 @@ namespace ddf {
 template <typename numeric_type>
 matrix<numeric_type> finite_diff(
     math_expr<numeric_type> *expr, variable<numeric_type> *var,
-    numeric_type delta = 1e-3) {
+    numeric_type delta = 1e-5) {
     vector<numeric_type> expr_val, expr_val1;
     expr->eval(expr_val);
     auto &val = var->value();
@@ -36,20 +36,29 @@ matrix<numeric_type> finite_diff(
 template <typename numeric_type>
 bool vector_diff(
     const vector<numeric_type> &x, const vector<numeric_type> &y,
-    numeric_type delta = 1e-3) {
+    numeric_type delta = 1e-4) {
     if (x.size() != y.size()) {
         return true;
     }
 
     int vec_size = x.size();
     for (int i = 0; i < vec_size; i++) {
-        numeric_type diff = x[i] - y[i];
-        if (diff > delta || diff < -delta) {
+        numeric_type diff = std::abs(x[i] - y[i]);
+        numeric_type denom = std::max(std::abs(x[i]), std::abs(y[i]));
+        numeric_type err = diff / denom;
+        if (err > delta) {
             return true;
         }
     }
 
     return false;
+}
+
+template <typename numeric_type>
+bool vector_matrix_diff(
+    const vector<numeric_type> &x, const matrix<numeric_type> &y,
+    numeric_type delta = 1e-4) {
+    return vector_diff(x, ddf::vector<double>(y.shape(1), y.raw_data()));
 }
 
 template <typename numeric_type>

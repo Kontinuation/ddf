@@ -268,33 +268,38 @@ void test_conv_op_1(void)
     expect_true(
         !ddf::vector_diff(ddf::vector<double>(18, (double *) expected), y),
         "cs231n convolution example");
+}
 
-    // test backprop
-    ddf::variable<double> *var_c =
-        new ddf::variable<double>("c",
-            ddf::vector<double>(sizeof(c)/sizeof(c[0]), c));
+void test_conv_op_2(int w, int h, int d, int fw, int fh, int od, int stride, int padding)
+{
+    auto op_conv = new ddf::convolution<double>(
+        w, h, d,
+        fw, fh, od,
+        stride, padding);
+
+    int size_output = op_conv->size_f();
     
     ddf::variable<double> *var_x =
-        new ddf::variable<double>("x",
-            ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+        new ddf::variable<double>("x", ddf::vector<double>(w * h * d));
+    var_x->value().fill_rand();
+
+    ddf::variable<double> *var_c =
+        new ddf::variable<double>("c",
+            ddf::vector<double>(fw * fh * od * d));
+    var_c->value().fill_rand();
 
     ddf::variable<double> *var_b =
         new ddf::variable<double>("b",
-            ddf::vector<double>(sizeof(b)/sizeof(b[0]), b));
-
-    double l[18] = {0};
-    l[2] = 1;
-    ddf::variable<double> *var_l = 
-        new ddf::variable<double>("l",
-            ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
+            ddf::vector<double>(od));
+    var_b->value().fill_rand();
     
+    ddf::variable<double> *var_l = 
+        new ddf::variable<double>("l", ddf::vector<double>(size_output));
+    var_l->value().fill(0);
+    var_l->value()[2] = 1;
+
     ddf::math_expr<double> *predict = new ddf::function_call<double>(
         op_conv, var_x, var_c, var_b);
-
-    predict->eval(y);
-    expect_true(
-        !ddf::vector_diff(ddf::vector<double>(18, (double *) expected), y),
-        "evaluation of convolution operator");
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::shared_ptr<ddf::math_expr<double> >(
@@ -302,12 +307,13 @@ void test_conv_op_1(void)
             predict, /* predict->clone() */
             var_l));
 
+    ddf::vector<double> y;
     loss->eval(y);
     expect_true(y[0] > 0, "evaluation of convolution expr loss");
 
-    auto bias_diff = ddf::finite_diff(loss.get(), var_b);
-    auto input_diff = ddf::finite_diff(loss.get(), var_x);
-    auto filter_diff = ddf::finite_diff(loss.get(), var_c);
+    auto x_diff = ddf::finite_diff(loss.get(), var_x);
+    auto c_diff = ddf::finite_diff(loss.get(), var_c);
+    auto b_diff = ddf::finite_diff(loss.get(), var_b);
 
     // backprop gradient
     ddf::backpropagation<double> bprop;
@@ -316,21 +322,13 @@ void test_conv_op_1(void)
     loss->eval(y);
     loss->apply(&bprop);
 
-    bool b_bias_diff = ddf::vector_diff(
-            var_b->delta,
-            ddf::vector<double>(bias_diff.shape(1), bias_diff.raw_data()));
-    
-    bool b_input_diff = ddf::vector_diff(
-            var_x->delta,
-            ddf::vector<double>(input_diff.shape(1), input_diff.raw_data()));
+    bool x_err = ddf::vector_matrix_diff(var_x->delta, x_diff);
+    bool c_err = ddf::vector_matrix_diff(var_c->delta, c_diff);
+    bool b_err = ddf::vector_matrix_diff(var_b->delta, b_diff);
 
-    bool b_filter_diff = ddf::vector_diff(
-            var_c->delta,
-            ddf::vector<double>(filter_diff.shape(1), filter_diff.raw_data()));
-
-    expect_true(!b_bias_diff, "convolution bprop bias diff");
-    expect_true(!b_input_diff, "convolution bprop input diff");
-    expect_true(!b_filter_diff, "convolution bprop filter diff");
+    expect_true(!x_err, "convolution bprop x diff");
+    expect_true(!c_err, "convolution bprop c diff");
+    expect_true(!b_err, "convolution bprop b diff");
 }
 
 void test_conv_fc_relu(void)
@@ -565,17 +563,23 @@ int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
     test_nd_array();
-    test_expr_visitor<float>();
-    test_expr_visitor<double>();
+    for (int k = 0; k < 5; k++) {
+        test_expr_visitor<double>();
+    }
     test_conv_op_0();
     test_conv_op_1();
-    test_conv_fc_relu();
-    test_conv_fc_relu();
-    test_conv_fc_relu();
+    for (int k = 0; k < 5; k++) {
+        test_conv_op_2(5, 5, 3, 3, 3, 2, 2, 1);
+    }
+    for (int k = 0; k < 5; k++) {
+        test_conv_fc_relu();
+    }
     test_pool_op();
-    test_pool_op_1(5, 5, 3, 3, 2, 1);
-    test_pool_op_1(5, 5, 3, 3, 2, 0);
-    test_pool_op_1(4, 4, 1, 2, 1, 0);
-    test_pool_op_1(4, 4, 1, 3, 1, 0);
+    for (int k = 0; k < 5; k++) {
+        test_pool_op_1(5, 5, 3, 3, 2, 1);
+        test_pool_op_1(5, 5, 3, 3, 2, 0);
+        test_pool_op_1(4, 4, 1, 2, 1, 0);
+        test_pool_op_1(4, 4, 1, 3, 1, 0);
+    }
     return 0;
 }
