@@ -240,19 +240,18 @@ void test_conv_op_1(void)
 
     double b[2] = {1, 0};
 
-    ddf::convolution<double> op_conv(
+    auto op_conv = new ddf::convolution<double>(
         5, 5, 3,                // input
         3, 3, 2,                // conv filters
         2, 1);                  // stride, padding
     
-    op_conv.prepare(0, ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
-    op_conv.prepare(1, ddf::vector<double>(sizeof(c)/sizeof(c[0]), c));
-    op_conv.prepare(2, ddf::vector<double>(sizeof(b)/sizeof(b[0]), b));
-    op_conv.size_f();
+    op_conv->prepare(0, ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+    op_conv->prepare(1, ddf::vector<double>(sizeof(c)/sizeof(c[0]), c));
+    op_conv->prepare(2, ddf::vector<double>(sizeof(b)/sizeof(b[0]), b));
+    op_conv->size_f();
 
     ddf::vector<double> y;
-    op_conv.f(y);
-    ddf::nd_array<double, 3> out({2, 3, 3}, y.raw_data());
+    op_conv->f(y);
 
     double expected[2][3][3] = {
         {
@@ -290,7 +289,7 @@ void test_conv_op_1(void)
             ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
     
     ddf::math_expr<double> *predict = new ddf::function_call<double>(
-        &op_conv, var_x, var_c, var_b);
+        op_conv, var_x, var_c, var_b);
 
     predict->eval(y);
     expect_true(
@@ -477,12 +476,12 @@ void test_pool_op()
         new ddf::variable<double>("l",
             ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
 
-    ddf::pooling<double> op_pool(
+    auto op_pool = new ddf::pooling<double>(
         5, 5, 3,                // input size
         3, 2, 1);               // extent, stride, padding
 
     ddf::math_expr<double> *predict = new ddf::function_call<double>(
-        &op_pool, var_x);
+        op_pool, var_x);
 
     ddf::vector<double> y;
     predict->eval(y);
@@ -518,11 +517,11 @@ void test_pool_op()
 
 void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
 {
-    ddf::pooling<double> op_pool(
+    auto op_pool = new ddf::pooling<double>(
         w, h, d,                  // input size
         extent, stride, padding); // extent, stride, padding
 
-    int size_output = op_pool.size_f();
+    int size_output = op_pool->size_f();
     
     ddf::variable<double> *var_x =
         new ddf::variable<double>("x", ddf::vector<double>(w * h * d));
@@ -534,7 +533,7 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
     var_l->value()[2] = 1;
 
     ddf::math_expr<double> *predict = new ddf::function_call<double>(
-        &op_pool, var_x);
+        op_pool, var_x);
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::shared_ptr<ddf::math_expr<double> >(

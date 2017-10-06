@@ -46,7 +46,6 @@ class math_expr {
 public:
     math_expr(expr_typeid type) : type(type) { }
     virtual ~math_expr(void) = default;
-    virtual math_expr *clone(void) const = 0;
     virtual std::string to_string() const = 0;
     virtual void apply(math_expr_visitor<_numeric_type> *visitor) = 0;
     virtual void eval(vector<_numeric_type> &y) = 0;
@@ -57,21 +56,6 @@ private:
     DISABLE_COPY_AND_ASSIGN(math_expr);
 };
 
-// utility function for cloning multiple expressions at once
-template <typename numeric_type>
-std::vector<std::shared_ptr<math_expr<numeric_type> > >
-clone_exprs(const std::vector<std::shared_ptr<math_expr<numeric_type> > > &exprs) {
-    std::vector<std::shared_ptr<math_expr<numeric_type> > > ret;
-    size_t n_exprs = exprs.size();
-    ret.reserve(n_exprs);
-    for (size_t k = 0; k < n_exprs; k++) {
-        ret.push_back(std::shared_ptr<math_expr<numeric_type> >(
-                exprs[k]->clone())
-            );
-    }
-    return ret;
-}
-
 // dc/dx = 0
 template <typename numeric_type>
 struct constant: math_expr<numeric_type> {
@@ -81,10 +65,6 @@ struct constant: math_expr<numeric_type> {
 
     void eval(vector<numeric_type> &y) {
         y = _v;
-    }
-
-    math_expr<numeric_type> *clone(void) const {
-        return new constant(_v);
     }
 
     std::string to_string() const {
@@ -107,10 +87,6 @@ struct identity: math_expr<numeric_type> {
 
     void eval(vector<numeric_type> &) {
         assert(("could not evaluate identity as vector", false));
-    }
-
-    math_expr<numeric_type> *clone(void) const {
-        return new identity(_size);
     }
 
     std::string to_string() const {
@@ -142,10 +118,6 @@ struct variable: math_expr<numeric_type> {
 
     void eval(vector<numeric_type> &y) {
         y = _val;
-    }
-
-    math_expr<numeric_type> *clone(void) const {
-        return new variable(_var, _val);
     }
 
     std::string to_string() const {
@@ -198,10 +170,6 @@ struct function_call: math_expr<numeric_type> {
         _op->f(y);
     }
 
-    math_expr<numeric_type> *clone(void) const {
-        return new function_call(_op, clone_exprs(_args));
-    }
-
     std::string to_string() const {
         std::string str_args = "";
         size_t n_args = _args.size();
@@ -216,7 +184,7 @@ struct function_call: math_expr<numeric_type> {
         visitor->apply(this);
     }
 
-    math_op<numeric_type> *_op;
+    std::unique_ptr<math_op<numeric_type> > _op;
     std::vector<shared_math_expr_ptr> _args;
     std::vector<vector<numeric_type> > _xs;
     std::vector<vector<numeric_type> > _dxs;
@@ -237,10 +205,6 @@ struct addition: math_expr<numeric_type> {
         _b->eval(_yb);
         y.copy_from(_ya);
         y += _yb;
-    }
-
-    math_expr<numeric_type> *clone(void) const {
-        return new addition(_a->clone(), _b->clone());
     }
 
     std::string to_string() const {
