@@ -292,7 +292,6 @@ void test_conv_op_1(void)
         &op_conv, var_x, var_c, var_b);
 
     predict->eval(y);
-    ddf::nd_array<double, 3> out_eval({2, 3, 3}, y.raw_data());
     expect_true(
         !ddf::vector_diff(ddf::vector<double>(18, (double *) expected), y),
         "evaluation of convolution operator");
@@ -393,7 +392,7 @@ void test_conv_fc_relu(void)
     // backprop gradient
     ddf::backpropagation<double> bprop;
     ddf::reset_delta<double> reset;
-    ddf::vector<double> y;
+    ddf::vector<double> y(0);
     loss->apply(&reset);
     loss->eval(y);
     loss->apply(&bprop);
@@ -425,6 +424,144 @@ void test_conv_fc_relu(void)
     expect_true(!b_matmul_b_diff, "matmul b in conv-fc model");
 }
 
+void test_pool_op()
+{
+    double x[5 * 5 * 3] = {
+        // d0
+        1,2,3,4,5,
+        2,3,4,5,6,
+        3,4,5,6,7,
+        4,5,6,7,8,
+        5,6,7,8,9,
+        // d1
+        5,4,3,2,1,
+        6,5,4,3,2,
+        7,6,5,4,3,
+        8,7,6,5,4,
+        9,8,7,6,5,
+        // d2
+        9,8,7,6,5,
+        5,4,3,2,1,
+        6,5,4,3,2,
+        7,6,5,4,3,
+        8,7,6,5,4,
+    };
+    
+    double expected[3][3][3] = {
+        {
+            {3, 5, 6, },
+            {5, 7, 8, },
+            {6, 8, 9, },
+        },
+        {
+            {6, 5, 3, },
+            {8, 7, 5, },
+            {9, 8, 6, },
+        },
+        {
+            {9, 8, 6, },
+            {7, 6, 4, },
+            {8, 7, 5, },
+        },
+    };
+
+    // test backprop
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x",
+            ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+    // var_x->value().fill_rand();
+
+    double l[27] = {0};
+    l[2] = 1;
+    ddf::variable<double> *var_l = 
+        new ddf::variable<double>("l",
+            ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
+
+    ddf::pooling<double> op_pool(
+        5, 5, 3,                // input size
+        3, 2, 1);               // extent, stride, padding
+
+    ddf::math_expr<double> *predict = new ddf::function_call<double>(
+        &op_pool, var_x);
+
+    ddf::vector<double> y;
+    predict->eval(y);
+
+    expect_true(
+        !ddf::vector_diff(ddf::vector<double>(27, (double *) expected), y),
+        "evaluation of pooling operator");
+
+    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+        new ddf::function_call<double>(&DS, 
+            predict, /* predict->clone() */
+            var_l));
+
+    loss->eval(y);
+    expect_true(y[0] > 0, "evaluation of pooling expr loss");
+
+    auto input_diff = ddf::finite_diff(loss.get(), var_x);
+
+    // backprop gradient
+    ddf::backpropagation<double> bprop;
+    ddf::reset_delta<double> reset;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+
+    bool b_input_diff = ddf::vector_diff(
+            var_x->delta,
+            ddf::vector<double>(input_diff.shape(1), input_diff.raw_data()));
+
+    expect_true(!b_input_diff, "pooling bprop input diff");
+}
+
+void test_pool_op_1(void)
+{
+    double x[5 * 5 * 3];
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x",
+            ddf::vector<double>(sizeof(x)/sizeof(x[0]), x));
+    var_x->value().fill_rand();
+
+    double l[27] = {0};
+    l[2] = 1;
+    ddf::variable<double> *var_l = 
+        new ddf::variable<double>("l",
+            ddf::vector<double>(sizeof(l)/sizeof(l[0]), l));
+
+    ddf::pooling<double> op_pool(
+        5, 5, 3,                // input size
+        3, 2, 1);               // extent, stride, padding
+
+    ddf::math_expr<double> *predict = new ddf::function_call<double>(
+        &op_pool, var_x);
+
+    ddf::softmax_cross_entropy_with_logits<double> DS;
+    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+        new ddf::function_call<double>(&DS, 
+            predict, /* predict->clone() */
+            var_l));
+
+    ddf::vector<double> y;
+    loss->eval(y);
+    expect_true(y[0] > 0, "evaluation of pooling expr loss");
+
+    auto input_diff = ddf::finite_diff(loss.get(), var_x);
+
+    // backprop gradient
+    ddf::backpropagation<double> bprop;
+    ddf::reset_delta<double> reset;
+    loss->apply(&reset);
+    loss->eval(y);
+    loss->apply(&bprop);
+
+    bool b_input_diff = ddf::vector_diff(
+            var_x->delta,
+            ddf::vector<double>(input_diff.shape(1), input_diff.raw_data()));
+
+    expect_true(!b_input_diff, "pooling bprop input diff");
+}
 
 int main(int argc, char *argv[])
 {
@@ -437,5 +574,9 @@ int main(int argc, char *argv[])
     test_conv_fc_relu();
     test_conv_fc_relu();
     test_conv_fc_relu();
+    test_pool_op();
+    test_pool_op_1();
+    test_pool_op_1();
+    test_pool_op_1();
     return 0;
 }

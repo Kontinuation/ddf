@@ -269,7 +269,7 @@ public:
             throw exception(
                 "bias vector size does not match with declaration");
         }
-        return (_w - _fw + _p + _p) / _s + 1;
+        return _out_w * _out_h * _od;
     }
 
     void f(vector_type &y) {
@@ -431,7 +431,8 @@ public:
 
     pooling(int w, int h, int d, int extent, int stride, int padding)
         : math_op<numeric_type>("pool", 1),
-          _w(w), _h(h), _d(d), _ks(extent), _s(stride), _p(padding) {
+          _w(w), _h(h), _d(d), _ks(extent), _s(stride), _p(padding),
+          _input({0,0,0}) {
         if (_w + _p + _p < _ks || h + _p + _p < _ks) {
             throw exception("pooling input size is too small");
         }
@@ -458,7 +459,7 @@ public:
     }
 
     int size_f() {
-        return _x.size();
+        return _out_w * _out_h * _out_d;
     }
 
     void f(vector_type &y) {
@@ -489,6 +490,11 @@ public:
                 }
             }
         }
+    }
+
+    void bprop(int k_param, vector_type &d) {
+        assert_param_dim(k_param);
+        bprop_input(d);
     }
 
     void bprop_input(vector_type &d) {
