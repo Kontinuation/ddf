@@ -142,6 +142,12 @@ public:
             sum_ce -= _l[k] * log(_exp_w[k]);
         }
 
+        // printf("DS input: %s; label: %s; exp_w: %s, output: %f\n",
+        //     _w.to_string().c_str(),
+        //     _l.to_string().c_str(),
+        //     _exp_w.to_string().c_str(),
+        //     sum_ce);
+
         y.resize(1);
         y[0] = sum_ce;
     }
@@ -244,12 +250,24 @@ public:
     void prepare(int k_param, const vector_type &v) {
         assert_param_dim(k_param);
         if (k_param == 0) {
+            if (_w * _h * _d != v.size()) {
+                throw exception(
+                    "input volume size does not match with declaration");
+            }
             _v_input = v;
             _input = nd_array<numeric_type, 3>({_d, _h, _w}, v.raw_data());
         } else if (k_param == 1) {
+            if (_fw * _fh * _d * _od != v.size()) {
+                throw exception(
+                    "filter volume size does not match with declaration");
+            }
             _v_filter = v;
             _filter = nd_array<numeric_type, 4>({_od, _d, _fh, _fw}, v.raw_data());
         } else if (k_param == 2) {
+            if (_od != v.size()) {
+                throw exception(
+                    "bias vector size does not match with declaration");
+            }
             _bias = v;
         }
     }
@@ -262,17 +280,15 @@ public:
     }
  
     int size_f() {
-        if (_w * _h * _d != _v_input.size()) {
-            throw exception(
-                "input volume size does not match with declaration");
-        } else if (_fw * _fh * _d * _od != _v_filter.size()) {
-            throw exception(
-                "filter volume size does not match with declaration");
-        } else if (_od != _bias.size()) {
-            throw exception(
-                "bias vector size does not match with declaration");
-        }
         return _out_w * _out_h * _od;
+    }
+
+    int filter_size() {
+        return _fw * _fh * _d * _od;
+    }
+
+    int depth() {
+        return _od;
     }
 
     void f(vector_type &y) {

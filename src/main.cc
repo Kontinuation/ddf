@@ -79,8 +79,114 @@ ddf::math_expr<numeric_type> *fc_model(
     return loss;
 }
 
+template <typename numeric_type>
+ddf::math_expr<numeric_type> *conv_model(
+    const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls)
+{
+    // -- problem size --
+    //  input:  28 * 28
+    //  output: 10
+    ddf::variable<numeric_type> *var_x = 
+        new ddf::variable<numeric_type>(
+            "x", ddf::vector<numeric_type>(28 * 28));
+    ddf::variable<numeric_type> *var_l = 
+        new ddf::variable<numeric_type>(
+            "l", ddf::vector<numeric_type>(10));
+
+    // -- prepare deep model --
+
+    // conv 28 * 28 * 1 => 24 * 24 * 4
+    auto conv_0 = new ddf::convolution<numeric_type>(
+        28, 28, 1,              // input
+        5, 5, 4,                // conv filters
+        1, 0);                  // stride, padding
+
+    ddf::variable<numeric_type> *var_c0 =
+        new ddf::variable<numeric_type>(
+            "c0", ddf::vector<numeric_type>(conv_0->filter_size()));
+    ddf::variable<numeric_type> *var_b0 =
+        new ddf::variable<numeric_type>(
+            "b0", ddf::vector<numeric_type>(conv_0->depth()));
+
+    // pool 24 * 24 * 4 => 12 * 12 * 4
+    auto pool_0 = new ddf::pooling<numeric_type>(
+        24, 24, 4,              // input
+        2, 2, 0);               // sx, stride, padding
+
+
+    // conv 12 * 12 * 4 => 8 * 8 * 6
+    auto conv_1 = new ddf::convolution<numeric_type>(
+        12, 12, 4,              // input
+        5, 5, 6,                // conv filters
+        1, 0);                  // stride, padding
+
+    ddf::variable<numeric_type> *var_c1 =
+        new ddf::variable<numeric_type>(
+            "c1", ddf::vector<numeric_type>(conv_1->filter_size()));
+    ddf::variable<numeric_type> *var_b1 =
+        new ddf::variable<numeric_type>(
+            "b1", ddf::vector<numeric_type>(conv_1->depth()));
+
+    // pool 8 * 8 * 6 => 4 * 4 * 6
+    auto pool_1 = new ddf::pooling<numeric_type>(
+        8, 8, 6,                // input
+        2, 2, 0);               // sx, stride, padding
+
+
+    // conv 4 * 4 * 6 => 2 * 2 * 10
+    auto conv_2 = new ddf::convolution<numeric_type>(
+        4, 4, 6,                // input
+        3, 3, 10,               // conv filters
+        1, 0);                  // stride, padding
+
+    ddf::variable<numeric_type> *var_c2 =
+        new ddf::variable<numeric_type>(
+            "c2", ddf::vector<numeric_type>(conv_2->filter_size()));
+    ddf::variable<numeric_type> *var_b2 =
+        new ddf::variable<numeric_type>(
+            "b2", ddf::vector<numeric_type>(conv_2->depth()));
+
+    // pool 2 * 2 * 10 => 1 * 1 * 10
+    auto pool_2 = new ddf::pooling<numeric_type>(
+        2, 2, 10,                // input
+        2, 1, 0);                // sx, stride, padding
+
+    // initial value of hyper parameters
+    var_c0->value().fill_rand();
+    var_b0->value().fill_rand();
+    var_c1->value().fill_rand();
+    var_b1->value().fill_rand();
+    var_c2->value().fill_rand();
+    var_b2->value().fill_rand();
+    
+    // predict: conv0 -> pool0 -> conv1 -> pool1 -> conv2 -> pool2
+    ddf::math_expr<numeric_type> *predict =
+        new ddf::function_call<numeric_type>(
+            pool_2,
+            new ddf::function_call<numeric_type>(
+                conv_2, 
+                new ddf::function_call<numeric_type>(
+                    pool_1,
+                    new ddf::function_call<numeric_type>(
+                        conv_1, 
+                        new ddf::function_call<numeric_type>(
+                            pool_0, 
+                            new ddf::function_call<numeric_type>(
+                                conv_0,
+                                var_x, var_c0, var_b0)),
+                        var_c1, var_b1)),
+                var_c2, var_b2));
+        
+    // loss: DS(predict, l)
+    auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
+    auto loss = new ddf::function_call<numeric_type>(
+        DS, predict, var_l);
+
+    return loss;
+}
+
 int main(int argc, char *argv[]) {
-    if (argc != 4) {
+    if (argc < 4) {
         printf(
             "usage: %s train train_dataset out_model_file\n"
             "       %s predict test_dataset model_file\n",
@@ -91,6 +197,10 @@ int main(int argc, char *argv[]) {
     const char *cmd = argv[1];
     const char *dataset_file = argv[2];
     const char *model_file = argv[3];
+    float alpha = 0.1;
+    if (argc > 4) {
+        alpha = atof(argv[4]);
+    }
     if (!strcmp(cmd, "train")) {
         // -- read training data from file --
         dataset d_train(dataset_file);
@@ -111,8 +221,13 @@ int main(int argc, char *argv[]) {
             ls(k, label[k]) = 1;
         }
 
+        logging::info(
+            "dimension: %d, n_samples: %d, n_classes: %d",
+            dimension, n_samples, n_classes);
+
         // -- train this model using optimizer defined in train.hh --
-        auto loss = std::unique_ptr<ddf::math_expr<float> >(fc_model(xs, ls, 20));
+        // auto loss = std::unique_ptr<ddf::math_expr<float> >(fc_model(xs, ls, 20));
+        auto loss = std::unique_ptr<ddf::math_expr<float> >(conv_model(xs, ls));
         
         // construct optimizer
         ddf::optimizer_bprop<float> optimizer;
@@ -127,7 +242,8 @@ int main(int argc, char *argv[]) {
         logging::info("initial loss: %f", training_loss);
 
         // perform iterative optimization to reduce training loss
-        for (int iter = 0; iter < 10; iter++) {
+        optimizer.set_learning_rate(alpha);
+        for (int iter = 0; iter < 1000; iter++) {
             clock_t start = clock();
             optimizer.step(1);
             clock_t end = clock();

@@ -78,6 +78,11 @@ public:
         this->dbg_dump();
     }
 
+    // set learning rate
+    virtual void set_learning_rate(numeric_type alpha) {
+        _alpha = alpha;
+    }
+
     // fetch current training loss
     virtual numeric_type loss(void) {
         return _training_loss;
@@ -154,7 +159,7 @@ protected:
     expr_type *_loss_expr = nullptr;
     const std::map<std::string, matrix_type> *_feed_dict = nullptr;
     int _n_samples = 0;
-    numeric_type _alpha = 0.5; 
+    numeric_type _alpha = 0.1; 
     std::map<std::string, varexpr_type *> _feed_var;
     std::map<std::string, varexpr_type *> _hyperparam_var;
     std::map<std::string, vector_type> _derivative;

@@ -250,7 +250,7 @@ struct nd_array_base {
     void fill_rand(void) {
         numeric_type factor = 1 / (numeric_type) RAND_MAX;
         for (int k = 0; k < _buf_size; k++) {
-            _raw_data[k] = (rand() * factor - 0.5) * 2;
+            _raw_data[k] = (rand() * factor - 0.5);
         }
     }
 
