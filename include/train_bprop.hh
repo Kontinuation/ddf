@@ -1,14 +1,14 @@
 #ifndef _TRAIN_BPROP_H_
 #define _TRAIN_BPROP_H_
 
-// Given a deep network, we need to find values for its hyper parameters in
-// order to make this deep network perform certain task. This is achieved by a
-// process called "training" or "learning".
+// Given a deep network, we need to find values for its parameters in order to
+// make this deep network perform certain task. This is achieved by a process
+// called "training" or "learning".
 // 
 // In deep learning, we prepare lots of samples and feed these samples into the
-// neural network, and algorithmically tune those hyper parameters to minimize
-// the training loss, and hope the trained network to be general enough to
-// solve such problem.
+// neural network, and algorithmically tune those parameters to minimize the
+// training loss, and hope the trained network to be general enough to solve
+// such problem.
 
 #include "collect_vars.hh"
 
@@ -56,7 +56,7 @@ public:
             if (feed_dict->find(s.first) != feed_dict->end()) {
                 _feed_var.insert(s);
             } else {
-                _hyperparam_var.insert(s);
+                _param_var.insert(s);
                 _derivative[var] = vector_type(var_expr->value().size());
             }
         }
@@ -72,7 +72,7 @@ public:
                 var_expr->_val.copy_from(&arr_var(k, 0));
             }
             _loss_expr->eval(y);
-            _training_loss += y[0];
+            _training_loss += y[0] / _n_samples;
         }
 
         this->dbg_dump();
@@ -81,6 +81,10 @@ public:
     // set learning rate
     virtual void set_learning_rate(numeric_type alpha) {
         _alpha = alpha;
+    }
+
+    virtual void set_batch_size(int batch_size) {
+        _batch_size = batch_size;
     }
 
     // fetch current training loss
@@ -101,13 +105,20 @@ public:
 
             // calculate derivative for each sampl
             _training_loss = 0;
-            for (int k = 0; k < _n_samples; k++) {
+
+            // select a batch randomly
+            std::vector<unsigned int> batch_idx(_n_samples);
+            std::iota(batch_idx.begin(), batch_idx.end(), 0);
+            std::random_shuffle(batch_idx.begin(), batch_idx.end());
+            for (int k = 0; k < _batch_size; k++) {
+                int i_sample = batch_idx[k];
+
                 // set value for feeded variables
                 for (auto &kv: _feed_var) {
                     const std::string &var = kv.first;
                     const matrix_type &arr_var = _feed_dict->find(var)->second;
                     varexpr_type *var_expr = kv.second;
-                    var_expr->_val.copy_from(&arr_var(k, 0));
+                    var_expr->_val.copy_from(&arr_var(i_sample, 0));
                 }
 
                 // perform backpropagation
@@ -115,18 +126,18 @@ public:
                 _loss_expr->eval(loss);
                 _loss_expr->delta.copy_from(loss);
                 _loss_expr->apply(&bprop);
-                _training_loss += loss[0];
+                _training_loss += (loss[0] / _n_samples);
 
-                // calculate gradient for hyper parameters
-                for (auto &kv: _hyperparam_var) {
+                // accumulate gradients of parameters
+                for (auto &kv: _param_var) {
                     const std::string &var = kv.first;
                     varexpr_type *var_expr = kv.second;
                     _derivative[var] += var_expr->delta;
                 }
             }
 
-            // update hyper parameters according to their derivatives
-            for (auto &kv: _hyperparam_var) {
+            // update parameters according to their derivatives
+            for (auto &kv: _param_var) {
                 const std::string &var = kv.first;
                 varexpr_type *var_expr = kv.second;
                 vector_type &sum_deriv = _derivative[var];
@@ -148,8 +159,8 @@ protected:
                 kv.first.c_str(), kv.second->value().size());
         }
 
-        logging::debug("hyperparam_var:");
-        for (auto &kv: _hyperparam_var) {
+        logging::debug("param_var:");
+        for (auto &kv: _param_var) {
             logging::debug("  %s: vector(%d)",
                 kv.first.c_str(), kv.second->value().size());
         }
@@ -160,9 +171,10 @@ protected:
     expr_type *_loss_expr = nullptr;
     const std::map<std::string, matrix_type> *_feed_dict = nullptr;
     int _n_samples = 0;
+    int _batch_size = 256;
     numeric_type _alpha = 0.1; 
     std::map<std::string, varexpr_type *> _feed_var;
-    std::map<std::string, varexpr_type *> _hyperparam_var;
+    std::map<std::string, varexpr_type *> _param_var;
     std::map<std::string, vector_type> _derivative;
     numeric_type _training_loss = 0;
 };
