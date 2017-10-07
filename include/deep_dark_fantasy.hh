@@ -9,6 +9,7 @@
 #include "check_expr.hh"
 #include "bprop.hh"
 #include "train_bprop.hh"
-#include "debugging.hh"
+#include "grad_check.hh"
+#include "draw_expr.hh"
 
 #endif /* DEEP_DARK_FANTASY_H */
