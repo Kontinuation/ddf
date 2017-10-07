@@ -42,11 +42,21 @@ int main(int argc, char *argv[]) {
         int n_samples = d_train.n_samples();
         int n_classes = d_train.n_classes();
 
-        // // truncate the training data for faster shakedown run
+        // // -- truncate the training data for faster shakedown run --
         // n_samples = std::min(1000, n_samples);
 
-        // prepare feeded data 
-        ddf::matrix<float> xs(n_samples, dimension, fea);
+        // -- prepare feeded data --
+
+        // input images are centered by substracting the mean
+        ddf::matrix<float> xs(n_samples, dimension);
+        xs.copy_from(fea);
+        for (int k = 0; k < n_samples; k++) {
+            ddf::vector<float> img(dimension, &xs(k,0));
+            float mean = img.sum() / dimension;
+            img += -mean;
+        }
+
+        // label as one-hot encoding
         ddf::matrix<float> ls(n_samples, n_classes);
         ls.fill(0);
         for (int k = 0; k < n_samples; k++) {

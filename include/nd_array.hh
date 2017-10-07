@@ -237,6 +237,13 @@ struct nd_array_base {
         return *this;
     }
 
+    nd_array_base &operator += (numeric_type w) {
+        for (int i = 0; i < _buf_size; i++) {
+            _raw_data[i] += w;
+        }
+        return *this;
+    }
+
     nd_array_base &operator *= (numeric_type w) {
         for (int i = 0; i < _buf_size; i++) {
             _raw_data[i] *= w;

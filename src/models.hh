@@ -198,7 +198,7 @@ ddf::math_expr<numeric_type> *conv_model(
     var_b1->value().fill(0);
     var_c2->value().fill_rand(-0.5, 0.5);
     var_b2->value().fill(0);
-    var_w->value().fill_rand(-0.1, 0.1);
+    var_w->value().fill_rand(-0.5, 0.5);
 
     auto relu_0 = new ddf::relu<numeric_type>();
     auto relu_1 = new ddf::relu<numeric_type>();
@@ -210,9 +210,9 @@ ddf::math_expr<numeric_type> *conv_model(
     //   -> conv2 -> relu2 -> pool2
     //   -> fc
     ddf::math_expr<numeric_type> *predict =
-        // new ddf::function_call<numeric_type>(
-        //     fc,
-        //     var_w,
+        new ddf::function_call<numeric_type>(
+            fc,
+            var_w,
             new ddf::function_call<numeric_type>(
                 pool_2,
                 new ddf::function_call<numeric_type>(
@@ -233,7 +233,7 @@ ddf::math_expr<numeric_type> *conv_model(
                                                 conv_0,
                                                 var_x, var_c0, var_b0))),
                                     var_c1, var_b1))),
-                        var_c2, var_b2)));
+                        var_c2, var_b2))));
         
     // loss: DS(predict, l)
     auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
