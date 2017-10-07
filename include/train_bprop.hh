@@ -92,7 +92,7 @@ public:
     virtual void step(int n_epochs) {
         ddf::backpropagation<numeric_type> bprop;
         ddf::reset_delta<numeric_type> reset;
-        ddf::vector<numeric_type> y;
+        ddf::vector<numeric_type> loss;
         for (int iter = 0; iter < n_epochs; iter++) {
             // initialize accumulative derivatives
             for (auto &kv: _derivative) {
@@ -112,9 +112,10 @@ public:
 
                 // perform backpropagation
                 _loss_expr->apply(&reset);
-                _loss_expr->eval(y);
+                _loss_expr->eval(loss);
+                _loss_expr->delta.copy_from(loss);
                 _loss_expr->apply(&bprop);
-                _training_loss += y[0];
+                _training_loss += loss[0];
 
                 // calculate gradient for hyper parameters
                 for (auto &kv: _hyperparam_var) {

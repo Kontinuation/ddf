@@ -66,6 +66,48 @@ bool vector_matrix_diff(
     return vector_diff(x, ddf::vector<double>(y.shape(1), y.raw_data()), delta);
 }
 
+template <typename numeric_type>
+bool grad_check(
+    math_expr<numeric_type> *expr, variable<numeric_type> *var,
+    const vector<numeric_type> &df,
+    numeric_type delta = 1e-5, numeric_type tol = 1e-7) {
+
+    // evaluate numerical gradient
+    vector<numeric_type> pos, neg;
+    auto &val = var->value();
+    numeric_type multiplier = 0.5 / delta;
+    vector<numeric_type> numerical_grad(val.size());
+
+    for (int i = 0; i < val.size(); i++) {
+        numeric_type old_val = val[i];
+        val[i] = old_val + delta;
+        expr->eval(pos);
+        val[i] = old_val - delta;
+        expr->eval(neg);
+        val[i] = old_val;
+        pos -= neg;
+        // printf("diff: %s\n", pos.to_string().c_str());
+        pos *= df;
+        // printf("diff * df: %s\n", pos.to_string().c_str());
+        numerical_grad[i] = pos.sum() * multiplier;
+        // printf("grad [%d]: %f\n", i, numerical_grad[i]);
+    }
+
+    // evaluate bprop gradient
+    ddf::backpropagation<numeric_type> bprop;
+    ddf::reset_delta<numeric_type> reset;
+    expr->apply(&reset);
+    expr->eval(pos);
+    expr->delta.copy_from(df);  // force set training err
+    expr->apply(&bprop);
+
+    // printf("bprop delta: %s\n", var->delta.to_string().c_str());
+    // printf("numerical_grad: %s\n", numerical_grad.to_string().c_str());
+
+    // calculate diff
+    return ddf::vector_diff(var->delta, numerical_grad, tol);
+}
+
 } // end namespace ddf
 
 #endif /* _GRAD_CHECK_H_ */

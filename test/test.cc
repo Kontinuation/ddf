@@ -80,12 +80,80 @@ void test_softmax_op(int len, int min, int max)
     ddf::reset_delta<numeric_type> reset;
     ddf::vector<numeric_type> y;
     loss->apply(&reset);
-    loss->eval(y);    
+    loss->eval(y);
     loss->apply(&bprop);
 
     auto x_diff = ddf::finite_diff(loss.get(), var_x);
     bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, x_diff);
     expect_true(!b_input_diff, "softmax bprop x diff");
+}
+
+template <typename numeric_type>
+void test_grad_check_matmul(int m, int n, numeric_type min, numeric_type max)
+{
+    auto op_matmul = new ddf::matrix_mult<numeric_type>();
+
+    ddf::variable<numeric_type> *var_w =
+        new ddf::variable<numeric_type>(
+            "w", ddf::vector<numeric_type>(m * n));
+    var_w->value().fill_rand(min, max);
+    
+    ddf::variable<numeric_type> *var_x =
+        new ddf::variable<numeric_type>(
+            "x", ddf::vector<numeric_type>(m));
+    var_x->value().fill_rand(min, max);
+
+    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+        new ddf::function_call<numeric_type>(
+            op_matmul, var_w, var_x));
+
+    ddf::vector<numeric_type> df(n);
+    df.fill_rand(min, max);
+
+    bool w_diff = ddf::grad_check(loss.get(), var_w, df);
+    bool x_diff = ddf::grad_check(loss.get(), var_x, df);
+    expect_true(!w_diff, "matmul bprop w diff");
+    expect_true(!x_diff, "matmul bprop x diff");
+}
+
+template <typename numeric_type>
+void test_grad_check_conv(
+    int w, int h, int d, int fw, int fh, int od,
+    int stride, int padding,
+    numeric_type min, numeric_type max)
+{
+    auto op_conv = new ddf::convolution<numeric_type>(
+        w, h, d,
+        fw, fh, od,
+        stride, padding);
+
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x", ddf::vector<double>(w * h * d));
+    var_x->value().fill_rand(min, max);
+
+    ddf::variable<double> *var_c =
+        new ddf::variable<double>("c",
+            ddf::vector<double>(fw * fh * od * d));
+    var_c->value().fill_rand(min, max);
+
+    ddf::variable<double> *var_b =
+        new ddf::variable<double>("b",
+            ddf::vector<double>(od));
+    var_b->value().fill_rand(min, max);
+
+    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+        new ddf::function_call<numeric_type>(
+            op_conv, var_x, var_c, var_b));
+
+    ddf::vector<numeric_type> df(op_conv->size_f());
+    df.fill_rand(min, max);
+
+    bool x_diff = ddf::grad_check(loss.get(), var_x, df);
+    bool c_diff = ddf::grad_check(loss.get(), var_c, df);
+    bool b_diff = ddf::grad_check(loss.get(), var_b, df);
+    expect_true(!x_diff, "conv bprop w diff");
+    expect_true(!c_diff, "conv bprop x diff");
+    expect_true(!b_diff, "conv bprop b diff");
 }
 
 template <typename numeric_type>
@@ -569,9 +637,19 @@ int main(int argc, char *argv[])
     for (int k = 0; k < 5; k++) {
         test_softmax_op<double>(10, -100, 100);
     }
+    for (int k = 1; k < 10; k++) {
+        test_grad_check_matmul<double>(10,8, -k, k);
+    }
+    for (int k = 1; k < 10; k++) {
+        test_grad_check_conv<double>(5, 5, 3, 3, 3, 2, 2, 1, -k, k);
+    }
+    for (int k = 1; k < 10; k++) {
+        test_grad_check_conv<double>(10, 10, 1, 3, 3, 3, 1, 0, -k, k);
+    }
     for (int k = 0; k < 5; k++) {
         test_linear_model<double>();
     }
+
     test_conv_op_0();
     test_conv_op_1();
     for (int k = 0; k < 5; k++) {
