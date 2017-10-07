@@ -71,7 +71,7 @@ void test_softmax_op(int len, int min, int max)
     var_l->value().fill(0);
     var_l->value()[0] = 1;
 
-    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+    auto loss = std::unique_ptr<ddf::math_expr<numeric_type> >(
         new ddf::function_call<numeric_type>(
             op_ds, var_x, var_l));
 
@@ -103,7 +103,7 @@ void test_grad_check_matmul(int m, int n, numeric_type min, numeric_type max)
             "x", ddf::vector<numeric_type>(m));
     var_x->value().fill_rand(min, max);
 
-    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+    auto loss = std::unique_ptr<ddf::math_expr<numeric_type> >(
         new ddf::function_call<numeric_type>(
             op_matmul, var_w, var_x));
 
@@ -141,7 +141,7 @@ void test_grad_check_conv(
             ddf::vector<double>(od));
     var_b->value().fill_rand(min, max);
 
-    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+    auto loss = std::unique_ptr<ddf::math_expr<numeric_type> >(
         new ddf::function_call<numeric_type>(
             op_conv, var_x, var_c, var_b));
 
@@ -215,7 +215,7 @@ void test_linear_model(void) {
 
     // loss: DS(predict, l)
     auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
-    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+    auto loss = std::unique_ptr<ddf::math_expr<numeric_type> >(
         new ddf::function_call<numeric_type>(DS, 
             predict, /* predict->clone() */
             var_l));
@@ -393,7 +393,7 @@ void test_conv_op_2(int w, int h, int d, int fw, int fh, int od, int stride, int
         op_conv, var_x, var_c, var_b);
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
-    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+    auto loss = std::unique_ptr<ddf::math_expr<double> >(
         new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
@@ -467,7 +467,7 @@ void test_conv_fc_relu(void)
             var_b);
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
-    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+    auto loss = std::unique_ptr<ddf::math_expr<double> >(
         new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
@@ -566,7 +566,7 @@ void test_pool_op()
         "evaluation of pooling operator");
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
-    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+    auto loss = std::unique_ptr<ddf::math_expr<double> >(
         new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
@@ -608,7 +608,7 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
         op_pool, var_x);
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
-    auto loss = std::shared_ptr<ddf::math_expr<double> >(
+    auto loss = std::unique_ptr<ddf::math_expr<double> >(
         new ddf::function_call<double>(DS, 
             predict, /* predict->clone() */
             var_l));
