@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstring>
 #include <algorithm>
+#include <random>
 #include <string>
 #include <sstream>
 
@@ -243,14 +244,19 @@ struct nd_array_base {
         return *this;
     }
 
-    void fill(_numeric_type val) {
+    // fill matrix value as specified constant
+    void fill(numeric_type val) {
         std::fill_n(_raw_data, _buf_size, val);
     }
 
-    void fill_rand(void) {
-        numeric_type factor = 1 / (numeric_type) RAND_MAX;
+    // fill random number uniformely distributed from min to max
+    void fill_rand(numeric_type min = -0.5, numeric_type max = 0.5) {
+        using dist_type = std::uniform_real_distribution<numeric_type>;
+        using param_type = typename dist_type::param_type;
+        static std::default_random_engine eng;
+        static dist_type dist;
         for (int k = 0; k < _buf_size; k++) {
-            _raw_data[k] = (rand() * factor - 0.5);
+            _raw_data[k] = dist(eng, param_type(min, max));
         }
     }
 

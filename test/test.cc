@@ -128,27 +128,17 @@ void test_expr_visitor(void) {
     loss->apply(&bprop);
 
     ddf::matrix<numeric_type> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
-    bool w0_finite_vs_bprop = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_dw0.shape(1), D_dw0.raw_data()),
-        var_w0->delta);
-    expect_true(!w0_finite_vs_bprop, "back propagation of w0");
-
     ddf::matrix<numeric_type> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
-    bool w1_finite_vs_bprop = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_dw1.shape(1), D_dw1.raw_data()),
-        var_w1->delta);
-    expect_true(!w1_finite_vs_bprop, "back propagation of w1");
-
     ddf::matrix<numeric_type> D_db0 = ddf::finite_diff(loss.get(), var_b0);
-    bool b0_finite_vs_bprop = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_db0.shape(1), D_db0.raw_data()),
-        var_b0->delta);
-    expect_true(!b0_finite_vs_bprop, "back propagation of b0");
-    
     ddf::matrix<numeric_type> D_db1 = ddf::finite_diff(loss.get(), var_b1);
-    bool b1_finite_vs_bprop = ddf::vector_diff(
-        ddf::vector<numeric_type>(D_db1.shape(1), D_db1.raw_data()),
-        var_b1->delta);
+    bool w0_finite_vs_bprop = ddf::vector_matrix_diff(var_w0->delta, D_dw0);
+    bool w1_finite_vs_bprop = ddf::vector_matrix_diff(var_w1->delta, D_dw1);
+    bool b0_finite_vs_bprop = ddf::vector_matrix_diff(var_b0->delta, D_db0);
+    bool b1_finite_vs_bprop = ddf::vector_matrix_diff(var_b1->delta, D_db1);
+        
+    expect_true(!w0_finite_vs_bprop, "back propagation of w0");
+    expect_true(!w1_finite_vs_bprop, "back propagation of w1");
+    expect_true(!b0_finite_vs_bprop, "back propagation of b0");
     expect_true(!b1_finite_vs_bprop, "back propagation of b1");
 }
 
@@ -395,25 +385,11 @@ void test_conv_fc_relu(void)
     loss->eval(y);
     loss->apply(&bprop);
 
-    bool b_conv_bias_diff = ddf::vector_diff(
-            var_cb->delta,
-            ddf::vector<double>(bias_diff.shape(1), bias_diff.raw_data()));
-    
-    bool b_conv_input_diff = ddf::vector_diff(
-            var_x->delta,
-            ddf::vector<double>(input_diff.shape(1), input_diff.raw_data()));
-
-    bool b_conv_filter_diff = ddf::vector_diff(
-            var_c->delta,
-            ddf::vector<double>(filter_diff.shape(1), filter_diff.raw_data()));
-
-    bool b_matmul_w_diff = ddf::vector_diff(
-            var_w->delta,
-            ddf::vector<double>(w_diff.shape(1), w_diff.raw_data()));
-        
-    bool b_matmul_b_diff = ddf::vector_diff(
-            var_b->delta,
-            ddf::vector<double>(b_diff.shape(1), b_diff.raw_data()));
+    bool b_conv_bias_diff = ddf::vector_matrix_diff(var_cb->delta,bias_diff);
+    bool b_conv_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
+    bool b_conv_filter_diff = ddf::vector_matrix_diff(var_c->delta, filter_diff);
+    bool b_matmul_w_diff = ddf::vector_matrix_diff(var_w->delta, w_diff);
+    bool b_matmul_b_diff = ddf::vector_matrix_diff(var_b->delta, b_diff);
 
     expect_true(!b_conv_bias_diff, "conv bias in conv-fc model");
     expect_true(!b_conv_input_diff, "conv input in conv-fc model");
@@ -506,10 +482,7 @@ void test_pool_op()
     loss->eval(y);
     loss->apply(&bprop);
 
-    bool b_input_diff = ddf::vector_diff(
-            var_x->delta,
-            ddf::vector<double>(input_diff.shape(1), input_diff.raw_data()));
-
+    bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
     expect_true(!b_input_diff, "pooling bprop input diff");
 }
 
@@ -552,10 +525,7 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
     loss->eval(y);
     loss->apply(&bprop);
 
-    bool b_input_diff = ddf::vector_diff(
-            var_x->delta,
-            ddf::vector<double>(input_diff.shape(1), input_diff.raw_data()));
-
+    bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
     expect_true(!b_input_diff, "pooling bprop input diff");
 }
 

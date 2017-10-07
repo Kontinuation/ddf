@@ -36,7 +36,7 @@ matrix<numeric_type> finite_diff(
 template <typename numeric_type>
 bool vector_diff(
     const vector<numeric_type> &x, const vector<numeric_type> &y,
-    numeric_type delta = 1e-4) {
+    numeric_type delta = 1e-5) {
     if (x.size() != y.size()) {
         return true;
     }
@@ -57,8 +57,8 @@ bool vector_diff(
 template <typename numeric_type>
 bool vector_matrix_diff(
     const vector<numeric_type> &x, const matrix<numeric_type> &y,
-    numeric_type delta = 1e-4) {
-    return vector_diff(x, ddf::vector<double>(y.shape(1), y.raw_data()));
+    numeric_type delta = 1e-5) {
+    return vector_diff(x, ddf::vector<double>(y.shape(1), y.raw_data()), delta);
 }
 
 template <typename numeric_type>

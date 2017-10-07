@@ -6,7 +6,13 @@
 
 // global mutex for making our synchronous logging methods reentrant
 static std::mutex __s_logging_lock;
-static int __s_log_level = logging::INFO;
+static int __s_log_level =
+#ifndef NDEBUG
+    logging::DEBUG
+#else
+    logging::INFO
+#endif
+    ;
 
 void logging::set_log_level(logging::level lvl) {
     __s_log_level = lvl;
