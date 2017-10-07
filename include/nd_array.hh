@@ -250,7 +250,7 @@ struct nd_array_base {
     }
 
     // fill random number uniformely distributed from min to max
-    void fill_rand(numeric_type min = -0.5, numeric_type max = 0.5) {
+    void fill_rand(numeric_type min = -1.0, numeric_type max = 1.0) {
         using dist_type = std::uniform_real_distribution<numeric_type>;
         using param_type = typename dist_type::param_type;
         static std::default_random_engine eng;

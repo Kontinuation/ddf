@@ -56,7 +56,40 @@ void test_nd_array(void)
 }
 
 template <typename numeric_type>
-void test_expr_visitor(void) {
+void test_softmax_op(int len, int min, int max)
+{
+    auto op_ds = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
+
+    ddf::variable<numeric_type> *var_x =
+        new ddf::variable<numeric_type>(
+            "x", ddf::vector<numeric_type>(len));
+    var_x->value().fill_rand(min, max);
+
+    ddf::variable<numeric_type> *var_l = 
+        new ddf::variable<numeric_type>(
+            "l", ddf::vector<numeric_type>(len));
+    var_l->value().fill(0);
+    var_l->value()[0] = 1;
+
+    auto loss = std::shared_ptr<ddf::math_expr<numeric_type> >(
+        new ddf::function_call<numeric_type>(
+            op_ds, var_x, var_l));
+
+    // backprop gradient
+    ddf::backpropagation<numeric_type> bprop;
+    ddf::reset_delta<numeric_type> reset;
+    ddf::vector<numeric_type> y;
+    loss->apply(&reset);
+    loss->eval(y);    
+    loss->apply(&bprop);
+
+    auto x_diff = ddf::finite_diff(loss.get(), var_x);
+    bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, x_diff);
+    expect_true(!b_input_diff, "softmax bprop x diff");
+}
+
+template <typename numeric_type>
+void test_linear_model(void) {
     srand(time(0));
     const int dimension = 8;
     const int n_classes = 4;
@@ -534,7 +567,10 @@ int main(int argc, char *argv[])
     printf("Patchouli Go!\n");
     test_nd_array();
     for (int k = 0; k < 5; k++) {
-        test_expr_visitor<double>();
+        test_softmax_op<double>(10, -100, 100);
+    }
+    for (int k = 0; k < 5; k++) {
+        test_linear_model<double>();
     }
     test_conv_op_0();
     test_conv_op_1();
@@ -551,5 +587,6 @@ int main(int argc, char *argv[])
         test_pool_op_1(4, 4, 1, 2, 1, 0);
         test_pool_op_1(4, 4, 1, 3, 1, 0);
     }
+
     return 0;
 }

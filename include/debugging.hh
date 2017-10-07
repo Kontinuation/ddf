@@ -41,12 +41,18 @@ bool vector_diff(
         return true;
     }
 
-    int vec_size = x.size();
-    for (int i = 0; i < vec_size; i++) {
-        numeric_type diff = std::abs(x[i] - y[i]);
-        numeric_type denom = std::max(std::abs(x[i]), std::abs(y[i]));
-        numeric_type err = diff / denom;
-        if (err > delta) {
+    vector<numeric_type> d = x.clone();
+    d -= y;
+    numeric_type diff = std::sqrt(d.dot(d));
+    numeric_type denom = std::sqrt(x.dot(x)) + std::sqrt(y.dot(y));
+    if (diff < delta && denom < delta) {
+        return false;
+    } else {
+        numeric_type rel_err = diff / denom;
+        if (rel_err > delta) {
+            logging::debug(
+                "rel_err: %f, diff: %f, denom: %f\n",
+                rel_err, diff, denom);
             return true;
         }
     }

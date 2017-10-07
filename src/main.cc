@@ -159,13 +159,13 @@ ddf::math_expr<numeric_type> *conv_model(
             "w", ddf::vector<numeric_type>(100));
 
     // initial value of hyper parameters
-    var_c0->value().fill_rand();
-    var_b0->value().fill_rand();
-    var_c1->value().fill_rand();
-    var_b1->value().fill_rand();
-    var_c2->value().fill_rand();
-    var_b2->value().fill_rand();
-    var_w->value().fill_rand();
+    var_c0->value().fill_rand(-0.5, 0.5);
+    var_b0->value().fill(0);
+    var_c1->value().fill_rand(-0.5, 0.5);
+    var_b1->value().fill(0);
+    var_c2->value().fill_rand(-0.5, 0.5);
+    var_b2->value().fill(0);
+    var_w->value().fill_rand(-0.5, 0.5);
 
     auto relu_0 = new ddf::relu<numeric_type>();
     auto relu_1 = new ddf::relu<numeric_type>();
