@@ -110,7 +110,8 @@ public:
             std::vector<unsigned int> batch_idx(_n_samples);
             std::iota(batch_idx.begin(), batch_idx.end(), 0);
             std::random_shuffle(batch_idx.begin(), batch_idx.end());
-            for (int k = 0; k < _batch_size; k++) {
+            int batch_size = std::min(_batch_size, _n_samples);
+            for (int k = 0; k < batch_size; k++) {
                 int i_sample = batch_idx[k];
 
                 // set value for feeded variables

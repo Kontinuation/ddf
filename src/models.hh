@@ -7,6 +7,7 @@
 
 template <typename numeric_type>
 ddf::math_expr<numeric_type> *fc_1_model(
+    ddf::variable<numeric_type> *var_x, ddf::variable<numeric_type> *var_l, 
     const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls)
 {
     // -- identify problem size --
@@ -25,12 +26,7 @@ ddf::math_expr<numeric_type> *fc_1_model(
     // initial value of hyper parameters
     var_w0->value().fill_rand();
     var_b0->value().fill_rand();
-        
-    ddf::variable<numeric_type> *var_x = 
-        new ddf::variable<numeric_type>("x", ddf::vector<numeric_type>(dimension));
-    ddf::variable<numeric_type> *var_l = 
-        new ddf::variable<numeric_type>("l", ddf::vector<numeric_type>(n_classes));
-
+ 
     // predict: w0 * x + b0
     auto matmul_0 = new ddf::matrix_mult<numeric_type>();
     auto predict = new ddf::addition<numeric_type>(
@@ -40,18 +36,15 @@ ddf::math_expr<numeric_type> *fc_1_model(
             var_x),
         var_b0);
 
-    // loss: DS(predict, l)
-    auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
-    auto loss = new ddf::function_call<numeric_type>(
-        DS, predict, var_l);
-
-    return loss;
+    return predict;
 }
 
 
 template <typename numeric_type>
 ddf::math_expr<numeric_type> *fc_2_model(
-    const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls, int n_hidden)
+    ddf::variable<numeric_type> *var_x, ddf::variable<numeric_type> *var_l, 
+    const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls,
+    int n_hidden)
 {
     // -- identify problem size --
     int dimension = xs.shape(1);
@@ -78,11 +71,6 @@ ddf::math_expr<numeric_type> *fc_2_model(
     var_w1->value().fill_rand();
     var_b1->value().fill_rand();
         
-    ddf::variable<numeric_type> *var_x = 
-        new ddf::variable<numeric_type>("x", ddf::vector<numeric_type>(dimension));
-    ddf::variable<numeric_type> *var_l = 
-        new ddf::variable<numeric_type>("l", ddf::vector<numeric_type>(n_classes));
-
     // predict: w1 * (relu(w0 * x + b0)) + b1
     auto matmul_0 = new ddf::matrix_mult<numeric_type>();
     auto matmul_1 = new ddf::matrix_mult<numeric_type>();
@@ -102,31 +90,18 @@ ddf::math_expr<numeric_type> *fc_2_model(
                         var_b0))),
             var_b1);
 
-    // loss: DS(predict, l)
-    auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
-    auto loss = new ddf::function_call<numeric_type>(
-        DS, predict, var_l);
-
-    return loss;
+    return predict;
 }
 
 
 template <typename numeric_type>
 ddf::math_expr<numeric_type> *conv_model(
+    ddf::variable<numeric_type> *var_x, ddf::variable<numeric_type> *var_l, 
     const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls)
 {
     // -- problem size --
     //  input:  28 * 28
     //  output: 10
-    ddf::variable<numeric_type> *var_x = 
-        new ddf::variable<numeric_type>(
-            "x", ddf::vector<numeric_type>(28 * 28));
-    var_x->value().fill_rand();
-    ddf::variable<numeric_type> *var_l = 
-        new ddf::variable<numeric_type>(
-            "l", ddf::vector<numeric_type>(10));
-    var_l->value().fill(0);
-    var_l->value()[0] = 1;
 
     // -- prepare deep model --
 
@@ -237,13 +212,8 @@ ddf::math_expr<numeric_type> *conv_model(
                                                 var_x, var_c0, var_b0))),
                                     var_c1, var_b1))),
                         var_c2, var_b2))));
-        
-    // loss: DS(predict, l)
-    auto DS = new ddf::softmax_cross_entropy_with_logits<numeric_type>();
-    auto loss = new ddf::function_call<numeric_type>(
-        DS, predict, var_l);
 
-    return loss;
+    return predict;
 }
 
 #endif /* _MODELS_H_ */

@@ -68,9 +68,20 @@ int main(int argc, char *argv[]) {
             dimension, n_samples, n_classes);
 
         // -- train this model using optimizer defined in train.hh --
-        // auto loss = std::unique_ptr<ddf::math_expr<float> >(fc_1_model(xs, ls));
-        // auto loss = std::unique_ptr<ddf::math_expr<float> >(fc_2_model(xs, ls, 20));
-        auto loss = std::unique_ptr<ddf::math_expr<float> >(conv_model(xs, ls));
+
+        ddf::variable<float> *var_x = 
+            new ddf::variable<float>("x", ddf::vector<float>(dimension));
+        ddf::variable<float> *var_l = 
+            new ddf::variable<float>("l", ddf::vector<float>(n_classes));
+
+        // auto predict = fc_2_model(var_x, var_l, xs, ls, 20);
+        // auto predict = fc_1_model(var_x, var_l, xs, ls);
+        auto predict = conv_model(var_x, var_l, xs, ls);
+
+        auto DS = new ddf::softmax_cross_entropy_with_logits<float>();
+        auto loss = std::unique_ptr<ddf::math_expr<float> >(
+            new ddf::function_call<float>(
+                DS, predict, var_l));
         
         // construct optimizer
         ddf::optimizer_bprop<float> optimizer;
