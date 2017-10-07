@@ -62,7 +62,7 @@ struct nd_array_base {
         if (!data) {
             if (size > 0) {
 #ifdef NOTICE_ALLOC_CALL
-                logging::trace("allocating space for new array, size: %d", size); 
+                logging::info("allocating space for new array, size: %d", size); 
 #endif
                 _raw_data = new numeric_type[size];
             } else {
@@ -171,7 +171,7 @@ struct nd_array_base {
     // make a deep copy
     nd_array_base base_clone(void) const {
 #ifdef NOTICE_ALLOC_CALL
-        logging::trace("cloning new array, size: %d", _buf_size); 
+        logging::info("cloning new array, size: %d", _buf_size); 
 #endif
         numeric_type *new_data = new numeric_type[_buf_size];
         std::copy_n(_raw_data, _buf_size, new_data);
@@ -274,6 +274,22 @@ struct nd_array_base {
             val += _raw_data[i];
         }
         return val;
+    }
+
+    // mean value of all elements in this nd-array
+    numeric_type mean(void) {
+        return sum() / _buf_size;
+    }
+
+    // standard deviation
+    numeric_type std_deviation(void) {
+        numeric_type m = mean();
+        numeric_type std_d = 0;
+        for (int i = 0; i < _buf_size; i++) {
+            numeric_type d = _raw_data[i] - m;
+            std_d += d * d;
+        }
+        return std::sqrt(std_d / _buf_size);
     }
 
     void assert_same_size(const nd_array_base &v) const {

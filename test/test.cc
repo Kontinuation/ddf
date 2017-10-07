@@ -630,6 +630,39 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
     expect_true(!b_input_diff, "pooling bprop input diff");
 }
 
+template <typename numeric_type>
+void test_activation_distrib(int dim, int n_layers, numeric_type min, numeric_type max)
+{
+    // first layer
+    auto op_matmul = new ddf::matrix_mult<numeric_type>();
+    ddf::variable<numeric_type> *var_w = 
+        new ddf::variable<numeric_type>(
+            "w", ddf::vector<numeric_type>(dim * dim));
+    var_w->value().fill_rand(min, max);
+    ddf::variable<numeric_type> *var_x = 
+        new ddf::variable<numeric_type>(
+            "x", ddf::vector<numeric_type>(dim));
+    var_x->value().fill_rand();
+
+    auto predict = new ddf::function_call<numeric_type>(
+        op_matmul, var_w, var_x);
+
+    // stack more layers
+    for (int k = 0; k < n_layers; k++) {
+        op_matmul = new ddf::matrix_mult<numeric_type>();
+        var_w = new ddf::variable<numeric_type>(
+                "w", ddf::vector<numeric_type>(dim * dim));
+        var_w->value().fill_rand(min, max);
+        predict = new ddf::function_call<numeric_type>(
+            op_matmul, var_w, predict);
+    }
+
+    ddf::vector<numeric_type> y;
+    predict->eval(y);
+
+    delete predict;
+}
+
 int main(int argc, char *argv[])
 {
     printf("Patchouli Go!\n");
@@ -666,5 +699,6 @@ int main(int argc, char *argv[])
         test_pool_op_1(4, 4, 1, 3, 1, 0);
     }
 
+    test_activation_distrib<double>(10, 10, -0.1, 0.1);
     return 0;
 }

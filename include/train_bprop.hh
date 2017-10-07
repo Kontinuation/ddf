@@ -141,7 +141,11 @@ public:
                 const std::string &var = kv.first;
                 varexpr_type *var_expr = kv.second;
                 vector_type &sum_deriv = _derivative[var];
-                sum_deriv *= (_alpha / _n_samples);
+#ifdef DEBUG_ACT_DISTRIB
+                numeric_type step_len = sum_deriv.dot(sum_deriv) / _batch_size;
+                logging::info("step_len of %s: %f", var.c_str(), step_len);
+#endif
+                sum_deriv *= (_alpha / _batch_size);
                 var_expr->_val -= sum_deriv;
             }
         }

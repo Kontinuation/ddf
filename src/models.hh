@@ -121,9 +121,12 @@ ddf::math_expr<numeric_type> *conv_model(
     ddf::variable<numeric_type> *var_x = 
         new ddf::variable<numeric_type>(
             "x", ddf::vector<numeric_type>(28 * 28));
+    var_x->value().fill_rand();
     ddf::variable<numeric_type> *var_l = 
         new ddf::variable<numeric_type>(
             "l", ddf::vector<numeric_type>(10));
+    var_l->value().fill(0);
+    var_l->value()[0] = 1;
 
     // -- prepare deep model --
 

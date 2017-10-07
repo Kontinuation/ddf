@@ -168,6 +168,11 @@ struct function_call: math_expr<numeric_type> {
         }
         _op->ready();
         _op->f(y);
+
+#ifdef DEBUG_ACT_DISTRIB
+        logging::info("mean: %f, std_deviation: %f - %s",
+            y.mean(), y.std_deviation(), to_string().c_str());
+#endif
     }
 
     std::string to_string() const {
