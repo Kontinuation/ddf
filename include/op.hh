@@ -48,9 +48,8 @@ public:
         mat.mult(_x, y);
     }
 
-    void bprop(int k_param, vector_type &d) {
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
         assert_param_dim(k_param);
-        vector_type &dy = this->_dy;
         if (k_param == 0) {
             // dw = dy * x.T
             int n_row = dy.size();
@@ -141,18 +140,11 @@ public:
         for (int k = 0; k < n; k++) {
             sum_ce -= _l[k] * log(_exp_w[k]);
         }
-
-        // printf("DS input: %s; label: %s; exp_w: %s, output: %f\n",
-        //     _w.to_string().c_str(),
-        //     _l.to_string().c_str(),
-        //     _exp_w.to_string().c_str(),
-        //     sum_ce);
-
         y.resize(1);
         y[0] = sum_ce;
     }
 
-    void bprop(int k_param, vector_type &d) {
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
         assert_param_dim(k_param);
         if (k_param == 0) {
             int n = _w.size();
@@ -205,9 +197,8 @@ public:
         }
     }
 
-    void bprop(int k_param, vector_type &d) {
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
         assert_param_dim(k_param);
-        vector_type &dy = this->_dy;
         int n = _x.size();
         d.resize(n);
         for (int k = 0; k < n; k++) {
@@ -326,19 +317,18 @@ public:
         }
     }
 
-    void bprop(int k_param, vector_type &d) {
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
         assert_param_dim(k_param);
         if (k_param == 0) {
-            bprop_input(d);
+            bprop_input(dy, d);
         } else if (k_param == 1) {
-            bprop_filter(d);
+            bprop_filter(dy, d);
         } else if (k_param == 2) {
-            bprop_bias(d);
+            bprop_bias(dy, d);
         }
     }
 
-    void bprop_input(vector_type &d) {
-        vector_type &dy = this->_dy;
+    void bprop_input(const vector_type &dy, vector_type &d) {
         nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
 
         // prepare error volume of filter
@@ -377,8 +367,7 @@ public:
         }
     }
 
-    void bprop_filter(vector_type &d) {
-        vector_type &dy = this->_dy;
+    void bprop_filter(const vector_type &dy, vector_type &d) {
         nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
 
         // prepare error volume of filter
@@ -417,9 +406,8 @@ public:
         }
     }
 
-    void bprop_bias(vector_type &d) {
+    void bprop_bias(const vector_type &dy, vector_type &d) {
         d.resize(_od);
-        vector_type &dy = this->_dy;
         nd_array<numeric_type, 3> dy_3d({_od, _out_h, _out_w}, dy.raw_data());
         for (int i_od = 0; i_od < _od; i_od++) {
             matrix_type slice(_out_h, _out_w, &dy_3d(i_od, 0, 0));
@@ -514,13 +502,12 @@ public:
         }
     }
 
-    void bprop(int k_param, vector_type &d) {
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
         assert_param_dim(k_param);
-        bprop_input(d);
+        bprop_input(dy, d);
     }
 
-    void bprop_input(vector_type &d) {
-        vector_type &dy = this->_dy;
+    void bprop_input(const vector_type &dy, vector_type &d) {
         nd_array<numeric_type, 3> dy_3d({_out_d, _out_h, _out_w}, dy.raw_data());
 
         // prepare error volume of filter

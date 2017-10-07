@@ -38,8 +38,8 @@ public:
     virtual void f(vector_type &y) = 0;
 
     // backpropagation
-    void set_delta(vector_type &dy) { _dy = dy; }
-    virtual void bprop(int k_param, vector_type &dx) = 0;
+    virtual void bprop(
+        int k_param, const vector_type &dy, vector_type &dx) = 0;
 
     // short-hand for evaluating value for operator with 1, 2 and 3 input
     // parameters
@@ -72,7 +72,6 @@ public:
 protected:
     std::string _name;
     int _n_params;
-    vector_type _dy;            // for backward propagation
 };
 
 } // end namespace ddf

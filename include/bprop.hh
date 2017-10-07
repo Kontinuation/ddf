@@ -16,11 +16,11 @@ public:
     
     virtual void apply(function_call<numeric_type> *expr) {
         // accumulate delta
-        expr->_op->set_delta(expr->delta);
+        auto &dy = expr->delta;
         size_t n_args = expr->_args.size();
         for (size_t k = 0; k < n_args; k++) {
             vector<numeric_type> &d = expr->_dxs[k];
-            expr->_op->bprop(k, d);
+            expr->_op->bprop(k, dy, d);
 #ifdef DEBUG_BPROP
             logging::debug("expr %s bprop[%zu]: %s",
                 expr->to_string().c_str(), k, d.to_string().c_str());
