@@ -126,7 +126,7 @@ public:
                 _loss_expr->eval(loss);
                 _loss_expr->delta.copy_from(loss);
                 _loss_expr->apply(&bprop);
-                _training_loss += (loss[0] / _n_samples);
+                _training_loss += (loss[0] / _batch_size);
 
                 // accumulate gradients of parameters
                 for (auto &kv: _param_var) {

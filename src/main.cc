@@ -42,8 +42,8 @@ int main(int argc, char *argv[]) {
         int n_samples = d_train.n_samples();
         int n_classes = d_train.n_classes();
 
-        // truncate the training data for faster shakedown run
-        n_samples = std::min(1000, n_samples);
+        // // truncate the training data for faster shakedown run
+        // n_samples = std::min(1000, n_samples);
 
         // prepare feeded data 
         ddf::matrix<float> xs(n_samples, dimension, fea);
