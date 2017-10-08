@@ -9,6 +9,11 @@
 
 namespace ddf {
 
+enum mode {
+    TRAINING,
+    PREDICT,
+};
+
 class exception : public std::exception {
 public:
     explicit exception(const std::string& message):

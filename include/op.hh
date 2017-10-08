@@ -589,8 +589,10 @@ public:
         return _x.size();
     }
 
-    void reset() {
-        // generate dropout mask
+    void reset(mode m) {
+        if (m == PREDICT) {
+            _p = 1.0;           // fire all outputs
+        }
         _mask_is_ready = false;
     }
 
@@ -603,9 +605,10 @@ public:
             _mask_is_ready = true;
         }
 
+        // nuke dropped out values
         numeric_type factor = 1 / _p;
         for (int k = 0; k < n; k++) {
-            y[k] = ((_mask[k] > _p)? 0: _x[k]) * factor;
+            y[k] = ((_mask[k] > _p)? 0: _x[k] * factor);
         }
     }
 
@@ -614,10 +617,10 @@ public:
         int n = _x.size();
         d.resize(n);
 
-        // ignore dropped out values
+        // ignore gradients of dropped out values
         numeric_type factor = 1 / _p;
         for (int k = 0; k < n; k++) {
-            d[k] = (_mask[k] > _p? 0: dy[k]) * factor;
+            d[k] = (_mask[k] > _p? 0: dy[k] * factor);
         }
     }
 

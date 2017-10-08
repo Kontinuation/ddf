@@ -182,14 +182,6 @@ ddf::math_expr<numeric_type> *conv_model(
     var_b2->value().fill(0);
     var_w->value().fill_rand(-0.5, 0.5);
 
-    // var_c0->value().fill_rand(-0.06, 0.06);
-    // var_b0->value().fill(0);
-    // var_c1->value().fill_rand(-0.07, 0.07);
-    // var_b1->value().fill(0);
-    // var_c2->value().fill_rand(-0.176, 0.176);
-    // var_b2->value().fill(0);
-    // var_w->value().fill_rand(-0.55, 0.55);
-
     auto relu_0 = new ddf::relu<numeric_type>();
     auto relu_1 = new ddf::relu<numeric_type>();
     auto relu_2 = new ddf::relu<numeric_type>();

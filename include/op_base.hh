@@ -17,7 +17,7 @@ public:
     typedef _numeric_type numeric_type;
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
-    
+
 #define assert_param_dim(k_param)               \
     assert(("parameter index out of bound", (k_param) < this->_n_params))
     
@@ -30,7 +30,7 @@ public:
     virtual void prepare(int k_param, const vector_type &x) = 0;
     virtual vector_type get_param(int k_param) = 0;
     virtual void ready(void) {}
-    virtual void reset(void) {}
+    virtual void reset(mode m) {}
 
     // get result size without actual evaluation
     virtual int size_f() = 0;

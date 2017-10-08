@@ -4,6 +4,7 @@
 // Calculating gradient using backpropagation
 
 #include "expr.hh"
+#include "ignition.hh"
 
 namespace ddf {
 
@@ -56,49 +57,13 @@ public:
 };
 
 template <typename numeric_type>
-class reset_delta : public math_expr_visitor<numeric_type> {
-    virtual void apply(constant<numeric_type> *expr) {
-        expr->delta.fill(0);
-    }
-    virtual void apply(identity<numeric_type> *expr) {
-        expr->delta.fill(0);
-    }
-    virtual void apply(variable<numeric_type> *expr) {
-        expr->delta.fill(0);
-    }
-
-    virtual void apply(function_call<numeric_type> *expr) {
-        expr->delta.fill(0);
-        size_t n_args = expr->_args.size();
-        for (size_t k = 0; k < n_args; k++) {
-            expr->_args[k]->apply(this);
-        }
-    }
-        
-    virtual void apply(addition<numeric_type> *expr) {
-        expr->delta.fill(0);
-        expr->_a->apply(this);
-        expr->_b->apply(this);
-    }
-};
-
-template <typename numeric_type>
-class reset_op : public math_expr_visitor<numeric_type> {
-    virtual void apply(constant<numeric_type> *expr) {
-    }
-    virtual void apply(identity<numeric_type> *expr) {
-    }
-    virtual void apply(variable<numeric_type> *expr) {
-    }
-    virtual void apply(function_call<numeric_type> *expr) {
-        expr->reset_op();
-    }
-    virtual void apply(addition<numeric_type> *expr) {
-        expr->_a->apply(this);
-        expr->_b->apply(this);
-    }
-};
-
+void bprop_expr(math_expr<numeric_type> *loss_expr, vector<numeric_type> &loss) {
+    backpropagation<numeric_type> bprop;
+    reset_expr_delta(loss_expr);
+    loss_expr->eval(loss);
+    loss_expr->delta.copy_from(loss);
+    loss_expr->apply(&bprop);
+}
 
 } // end namespace ddf
 

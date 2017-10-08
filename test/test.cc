@@ -76,12 +76,8 @@ void test_softmax_op(int len, int min, int max)
             op_ds, var_x, var_l));
 
     // backprop gradient
-    ddf::backpropagation<numeric_type> bprop;
-    ddf::reset_delta<numeric_type> reset;
     ddf::vector<numeric_type> y;
-    loss->apply(&reset);
-    loss->eval(y);
-    loss->apply(&bprop);
+    bprop_expr(loss.get(), y);
 
     auto x_diff = ddf::finite_diff(loss.get(), var_x);
     bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, x_diff);
@@ -221,12 +217,8 @@ void test_linear_model(void) {
             var_l));
 
     // backprop gradient
-    ddf::backpropagation<numeric_type> bprop;
-    ddf::reset_delta<numeric_type> reset;
     ddf::vector<numeric_type> y;
-    loss->apply(&reset);
-    loss->eval(y);
-    loss->apply(&bprop);
+    bprop_expr(loss.get(), y);
 
     ddf::matrix<numeric_type> D_dw0 = ddf::finite_diff(loss.get(), var_w0);
     ddf::matrix<numeric_type> D_dw1 = ddf::finite_diff(loss.get(), var_w1);
@@ -407,11 +399,7 @@ void test_conv_op_2(int w, int h, int d, int fw, int fh, int od, int stride, int
     auto b_diff = ddf::finite_diff(loss.get(), var_b);
 
     // backprop gradient
-    ddf::backpropagation<double> bprop;
-    ddf::reset_delta<double> reset;
-    loss->apply(&reset);
-    loss->eval(y);
-    loss->apply(&bprop);
+    bprop_expr(loss.get(), y);
 
     bool x_err = ddf::vector_matrix_diff(var_x->delta, x_diff);
     bool c_err = ddf::vector_matrix_diff(var_c->delta, c_diff);
@@ -479,12 +467,8 @@ void test_conv_fc_relu(void)
     auto b_diff = ddf::finite_diff(loss.get(), var_b, 1e-6);
 
     // backprop gradient
-    ddf::backpropagation<double> bprop;
-    ddf::reset_delta<double> reset;
     ddf::vector<double> y(0);
-    loss->apply(&reset);
-    loss->eval(y);
-    loss->apply(&bprop);
+    bprop_expr(loss.get(), y);
 
     bool b_conv_bias_diff = ddf::vector_matrix_diff(var_cb->delta,bias_diff);
     bool b_conv_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
@@ -577,11 +561,7 @@ void test_pool_op()
     auto input_diff = ddf::finite_diff(loss.get(), var_x);
 
     // backprop gradient
-    ddf::backpropagation<double> bprop;
-    ddf::reset_delta<double> reset;
-    loss->apply(&reset);
-    loss->eval(y);
-    loss->apply(&bprop);
+    bprop_expr(loss.get(), y);
 
     bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
     expect_true(!b_input_diff, "pooling bprop input diff");
@@ -620,11 +600,7 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
     auto input_diff = ddf::finite_diff(loss.get(), var_x);
 
     // backprop gradient
-    ddf::backpropagation<double> bprop;
-    ddf::reset_delta<double> reset;
-    loss->apply(&reset);
-    loss->eval(y);
-    loss->apply(&bprop);
+    bprop_expr(loss.get(), y);
 
     bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
     expect_true(!b_input_diff, "pooling bprop input diff");
@@ -657,12 +633,9 @@ void test_dropout_op(int dim, double p)
     expect_true(y[0] > 0, "evaluation of dropout expr loss");
 
     // backprop gradient
-    ddf::backpropagation<double> bprop;
-    ddf::reset_delta<double> reset;
-    loss->apply(&reset);
-    loss->eval(y);
+    bprop_expr(loss.get(), y);
+
     auto input_diff = ddf::finite_diff(loss.get(), var_x);
-    loss->apply(&bprop);
 
     bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
     expect_true(!b_input_diff, "dropout bprop input diff");

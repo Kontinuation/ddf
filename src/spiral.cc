@@ -10,11 +10,15 @@ int main(int argc, char *argv[]) {
     int K = 3;
     double alpha = 0.1;
     int n_hidden = 20;
+    int n_iter = 1000;
     if (argc > 1) {
-        alpha = atof(argv[1]);
+        n_hidden = atoi(argv[1]);
     }
     if (argc > 2) {
-        n_hidden = atoi(argv[2]);
+        n_iter = atoi(argv[2]);
+    }
+    if (argc > 3) {
+        alpha = atof(argv[3]);
     }
 
     ddf::matrix<double> xs(N * K, 2);
@@ -62,7 +66,7 @@ int main(int argc, char *argv[]) {
 
     // perform iterative optimization to reduce training loss
     optimizer.set_learning_rate(alpha);
-    for (int iter = 0; iter < 1000; iter++) {
+    for (int iter = 0; iter < n_iter; iter++) {
         clock_t start = clock();
         optimizer.step(1);
         clock_t end = clock();
@@ -72,6 +76,8 @@ int main(int argc, char *argv[]) {
     }
 
     // plot splitting regions as contours
+    set_expr_working_mode(predict, ddf::PREDICT);
+
     ddf::vector<double> t;
     int n_steps = 500;
     double step = 3.0 / n_steps;

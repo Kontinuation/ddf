@@ -189,8 +189,8 @@ struct function_call: math_expr<numeric_type> {
         visitor->apply(this);
     }
 
-    void reset_op(void) {
-        _op->reset();
+    void reset_op(mode m) {
+        _op->reset(m);
     }
 
     std::unique_ptr<math_op<numeric_type> > _op;
