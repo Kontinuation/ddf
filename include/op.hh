@@ -570,6 +570,7 @@ public:
     
     dropout(numeric_type p):
         math_op<numeric_type>("dropout", 1),
+        _m(PREDICT),
         _p(p), _mask_is_ready(false) {
     }
 
@@ -590,9 +591,7 @@ public:
     }
 
     void reset(mode m) {
-        if (m == PREDICT) {
-            _p = 1.0;           // fire all outputs
-        }
+        _m = m;
         _mask_is_ready = false;
     }
 
@@ -600,15 +599,19 @@ public:
         int n = _x.size();
         y.resize(n);
 
-        if (!_mask_is_ready) {
-            _mask.fill_rand(0, 1);
-            _mask_is_ready = true;
-        }
+        if (_m == TRAINING) {
+            if (!_mask_is_ready) {
+                _mask.fill_rand(0, 1);
+                _mask_is_ready = true;
+            }
 
-        // nuke dropped out values
-        numeric_type factor = 1 / _p;
-        for (int k = 0; k < n; k++) {
-            y[k] = ((_mask[k] > _p)? 0: _x[k] * factor);
+            // nuke dropped out values
+            numeric_type factor = 1 / _p;
+            for (int k = 0; k < n; k++) {
+                y[k] = ((_mask[k] > _p)? 0: _x[k] * factor);
+            }
+        } else {
+            y.copy_from(_x);
         }
     }
 
@@ -617,14 +620,19 @@ public:
         int n = _x.size();
         d.resize(n);
 
-        // ignore gradients of dropped out values
-        numeric_type factor = 1 / _p;
-        for (int k = 0; k < n; k++) {
-            d[k] = (_mask[k] > _p? 0: dy[k] * factor);
+        if (_m == TRAINING) {
+            // ignore gradients of dropped out values
+            numeric_type factor = 1 / _p;
+            for (int k = 0; k < n; k++) {
+                d[k] = (_mask[k] > _p? 0: dy[k] * factor);
+            }
+        } else {
+            d.copy_from(dy);
         }
     }
 
 protected:
+    mode _m;
     numeric_type _p;
     vector_type _x;
     vector_type _mask;
