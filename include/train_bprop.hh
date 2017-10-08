@@ -95,7 +95,8 @@ public:
     // run iterative training algorithm
     virtual void step(int n_epochs) {
         ddf::backpropagation<numeric_type> bprop;
-        ddf::reset_delta<numeric_type> reset;
+        ddf::reset_delta<numeric_type> reset_delta;
+        ddf::reset_op<numeric_type> reset_op;
         ddf::vector<numeric_type> loss;
         for (int iter = 0; iter < n_epochs; iter++) {
             // initialize accumulative derivatives
@@ -111,6 +112,8 @@ public:
             std::iota(batch_idx.begin(), batch_idx.end(), 0);
             std::random_shuffle(batch_idx.begin(), batch_idx.end());
             int batch_size = std::min(_batch_size, _n_samples);
+
+            _loss_expr->apply(&reset_op);
             for (int k = 0; k < batch_size; k++) {
                 int i_sample = batch_idx[k];
 
@@ -123,7 +126,7 @@ public:
                 }
 
                 // perform backpropagation
-                _loss_expr->apply(&reset);
+                _loss_expr->apply(&reset_delta);
                 _loss_expr->eval(loss);
                 _loss_expr->delta.copy_from(loss);
                 _loss_expr->apply(&bprop);

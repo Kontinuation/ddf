@@ -561,6 +561,73 @@ protected:
     nd_array<numeric_type, 3> _input; // input data in 3d tensor view
 };
 
+// Dropout implemented as a layer
+template <typename numeric_type>
+class dropout: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+    
+    dropout(numeric_type p):
+        math_op<numeric_type>("dropout", 1),
+        _p(p), _mask_is_ready(false) {
+    }
+
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        _x = v;
+        _mask.resize(v.size());
+    }
+    
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _x;
+        else return vector_type();
+    }
+
+    int size_f() {
+        return _x.size();
+    }
+
+    void reset() {
+        // generate dropout mask
+        _mask_is_ready = false;
+    }
+
+    void f(vector_type &y) {
+        int n = _x.size();
+        y.resize(n);
+
+        if (!_mask_is_ready) {
+            _mask.fill_rand(0, 1);
+            _mask_is_ready = true;
+        }
+
+        numeric_type factor = 1 / _p;
+        for (int k = 0; k < n; k++) {
+            y[k] = ((_mask[k] > _p)? 0: _x[k]) * factor;
+        }
+    }
+
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
+        assert_param_dim(k_param);
+        int n = _x.size();
+        d.resize(n);
+
+        // ignore dropped out values
+        numeric_type factor = 1 / _p;
+        for (int k = 0; k < n; k++) {
+            d[k] = (_mask[k] > _p? 0: dy[k]) * factor;
+        }
+    }
+
+protected:
+    numeric_type _p;
+    vector_type _x;
+    vector_type _mask;
+    bool _mask_is_ready;
+};
+
 } // end namespace ddf
 
 #endif /* OP_H */

@@ -70,6 +70,8 @@ ddf::math_expr<numeric_type> *fc_2_model(
     var_b0->value().fill_rand();
     var_w1->value().fill_rand();
     var_b1->value().fill_rand();
+
+    auto dropout_0 = new ddf::dropout<numeric_type>(0.5);
         
     // predict: w1 * (relu(w0 * x + b0)) + b1
     auto matmul_0 = new ddf::matrix_mult<numeric_type>();
@@ -79,15 +81,17 @@ ddf::math_expr<numeric_type> *fc_2_model(
         new ddf::addition<numeric_type>(
             new ddf::function_call<numeric_type>(
                 matmul_1,
-                var_w1, 
+                var_w1,
                 new ddf::function_call<numeric_type>(
-                    relu_0,
-                    new ddf::addition<numeric_type>(
-                        new ddf::function_call<numeric_type>(
-                            matmul_0,
-                            var_w0, 
-                            var_x),
-                        var_b0))),
+                    dropout_0,
+                    new ddf::function_call<numeric_type>(
+                        relu_0,
+                        new ddf::addition<numeric_type>(
+                            new ddf::function_call<numeric_type>(
+                                matmul_0,
+                                var_w0, 
+                                var_x),
+                            var_b0)))),
             var_b1);
 
     return predict;
@@ -178,9 +182,21 @@ ddf::math_expr<numeric_type> *conv_model(
     var_b2->value().fill(0);
     var_w->value().fill_rand(-0.5, 0.5);
 
+    // var_c0->value().fill_rand(-0.06, 0.06);
+    // var_b0->value().fill(0);
+    // var_c1->value().fill_rand(-0.07, 0.07);
+    // var_b1->value().fill(0);
+    // var_c2->value().fill_rand(-0.176, 0.176);
+    // var_b2->value().fill(0);
+    // var_w->value().fill_rand(-0.55, 0.55);
+
     auto relu_0 = new ddf::relu<numeric_type>();
     auto relu_1 = new ddf::relu<numeric_type>();
     auto relu_2 = new ddf::relu<numeric_type>();
+
+    auto dropout_0 = new ddf::dropout<numeric_type>(0.5);
+    auto dropout_1 = new ddf::dropout<numeric_type>(0.5);
+    auto dropout_2 = new ddf::dropout<numeric_type>(0.5);
     
     // predict:
     //   conv0 -> relu0 -> pool0
@@ -198,19 +214,23 @@ ddf::math_expr<numeric_type> *conv_model(
                     new ddf::function_call<numeric_type>(
                         conv_2,
                         new ddf::function_call<numeric_type>(
-                            pool_1,
+                            dropout_1, 
                             new ddf::function_call<numeric_type>(
-                                relu_1,
+                                pool_1,
                                 new ddf::function_call<numeric_type>(
-                                    conv_1,
+                                    relu_1,
                                     new ddf::function_call<numeric_type>(
-                                        pool_0, 
+                                        conv_1,
                                         new ddf::function_call<numeric_type>(
-                                            relu_0, 
+                                            dropout_0, 
                                             new ddf::function_call<numeric_type>(
-                                                conv_0,
-                                                var_x, var_c0, var_b0))),
-                                    var_c1, var_b1))),
+                                                pool_0, 
+                                                new ddf::function_call<numeric_type>(
+                                                    relu_0, 
+                                                    new ddf::function_call<numeric_type>(
+                                                        conv_0,
+                                                        var_x, var_c0, var_b0)))),
+                                        var_c1, var_b1)))),
                         var_c2, var_b2))));
 
     return predict;

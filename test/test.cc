@@ -630,6 +630,44 @@ void test_pool_op_1(int w, int h, int d, int extent, int stride, int padding)
     expect_true(!b_input_diff, "pooling bprop input diff");
 }
 
+void test_dropout_op(int dim, double p)
+{
+    auto op_dropout = new ddf::dropout<double>(p);
+
+    ddf::variable<double> *var_x =
+        new ddf::variable<double>("x", ddf::vector<double>(dim));
+    var_x->value().fill_rand();
+
+    ddf::variable<double> *var_l = 
+        new ddf::variable<double>("l", ddf::vector<double>(dim));
+    var_l->value().fill(0);
+    var_l->value()[2] = 1;
+
+    ddf::math_expr<double> *predict = new ddf::function_call<double>(
+        op_dropout, var_x);
+
+    auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
+    auto loss = std::unique_ptr<ddf::math_expr<double> >(
+        new ddf::function_call<double>(DS, 
+            predict, /* predict->clone() */
+            var_l));
+
+    ddf::vector<double> y;
+    loss->eval(y);
+    expect_true(y[0] > 0, "evaluation of dropout expr loss");
+
+    // backprop gradient
+    ddf::backpropagation<double> bprop;
+    ddf::reset_delta<double> reset;
+    loss->apply(&reset);
+    loss->eval(y);
+    auto input_diff = ddf::finite_diff(loss.get(), var_x);
+    loss->apply(&bprop);
+
+    bool b_input_diff = ddf::vector_matrix_diff(var_x->delta, input_diff);
+    expect_true(!b_input_diff, "dropout bprop input diff");
+}
+
 template <typename numeric_type>
 void test_activation_distrib(int dim, int n_layers, numeric_type min, numeric_type max)
 {
@@ -698,7 +736,11 @@ int main(int argc, char *argv[])
         test_pool_op_1(4, 4, 1, 2, 1, 0);
         test_pool_op_1(4, 4, 1, 3, 1, 0);
     }
+    for (int k = 0; k < 5; k++) {
+        test_dropout_op(10, 0.3 + 0.1 * k);
+    }
 
     test_activation_distrib<double>(10, 10, -0.1, 0.1);
+
     return 0;
 }

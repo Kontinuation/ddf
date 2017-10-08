@@ -189,6 +189,10 @@ struct function_call: math_expr<numeric_type> {
         visitor->apply(this);
     }
 
+    void reset_op(void) {
+        _op->reset();
+    }
+
     std::unique_ptr<math_op<numeric_type> > _op;
     std::vector<shared_math_expr_ptr> _args;
     std::vector<vector<numeric_type> > _xs;

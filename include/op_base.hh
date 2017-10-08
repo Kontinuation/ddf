@@ -30,6 +30,7 @@ public:
     virtual void prepare(int k_param, const vector_type &x) = 0;
     virtual vector_type get_param(int k_param) = 0;
     virtual void ready(void) {}
+    virtual void reset(void) {}
 
     // get result size without actual evaluation
     virtual int size_f() = 0;

@@ -82,6 +82,24 @@ class reset_delta : public math_expr_visitor<numeric_type> {
     }
 };
 
+template <typename numeric_type>
+class reset_op : public math_expr_visitor<numeric_type> {
+    virtual void apply(constant<numeric_type> *expr) {
+    }
+    virtual void apply(identity<numeric_type> *expr) {
+    }
+    virtual void apply(variable<numeric_type> *expr) {
+    }
+    virtual void apply(function_call<numeric_type> *expr) {
+        expr->reset_op();
+    }
+    virtual void apply(addition<numeric_type> *expr) {
+        expr->_a->apply(this);
+        expr->_b->apply(this);
+    }
+};
+
+
 } // end namespace ddf
 
 #endif /* _BPROP_H_ */
