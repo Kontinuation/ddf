@@ -90,14 +90,14 @@ int main(int argc, char *argv[]) {
         alpha = atof(argv[6]);
     }
 
-    ddf::matrix<float> xs(0,0), ls(0,0);    
-    load_image_data(data_file, xs);
-    load_label_data(label_file, ls);
-    int n_samples = xs.shape(0);
-    int dimension = xs.shape(1);
-    int n_classes = ls.shape(1);
+    ddf::matrix<float> images(0,0), labels(0,0);
+    load_image_data(data_file, images);
+    load_label_data(label_file, labels);
+    int n_samples = images.shape(0);
+    int dimension = images.shape(1);
+    int n_classes = labels.shape(1);
 
-    if (xs.shape(0) != ls.shape(0)) {
+    if (images.shape(0) != labels.shape(0)) {
         logging::error("size of image data and label data does not match");
         return -1;
     }
@@ -110,6 +110,13 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    int n_train_samples = 10000;
+    int n_test_samples = 1000;
+    ddf::matrix<float> xs(n_train_samples, dimension, &images(0,0));
+    ddf::matrix<float> ls(n_train_samples, n_classes, &labels(0,0));
+    ddf::matrix<float> txs(n_test_samples, dimension, &images(n_train_samples, 0));
+    ddf::matrix<float> tls(n_test_samples, n_classes, &labels(n_train_samples,0));
+
     logging::info(
         "dimension: %d, n_samples: %d, n_classes: %d",
         dimension, n_samples, n_classes);
@@ -118,6 +125,12 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < 10; i++) {
         show_fea_as_image(&xs(i,0), 28, 28);
         printf("%s\n", ddf::vector<float>(10, &ls(i,0)).to_string().c_str());
+    }
+
+    // show some data
+    for (int i = 0; i < 10; i++) {
+        show_fea_as_image(&txs(i,0), 28, 28);
+        printf("%s\n", ddf::vector<float>(10, &tls(i,0)).to_string().c_str());
     }
     
     ddf::variable<float> *var_x = 
@@ -154,13 +167,34 @@ int main(int argc, char *argv[]) {
 
     // perform iterative optimization to reduce training loss
     optimizer.set_learning_rate(alpha);
+    ddf::vector<float> y;
     for (int iter = 0; iter < 100000; iter++) {
         clock_t start = clock();
-        optimizer.step(1);
+        optimizer.step(10);
         clock_t end = clock();
         logging::info("iter: %d, loss: %f, cost: %f sec",
             iter, optimizer.loss(),
             (double)(end - start) / CLOCKS_PER_SEC);
+
+        if (iter % 10 == 0) {
+            // evaluate model performance on test samples
+            auto &vec_x = var_x->value();
+            auto &vec_l = var_l->value();
+            int n_correct = 0;
+            for (int i = 0; i < n_test_samples; i++) {
+                vec_x.copy_from(&txs(i, 0));
+                vec_l.copy_from(&tls(i, 0));
+                predict->eval(y);
+                int pred_l = std::distance(
+                    &y[0],
+                    std::max_element(&y[0], &y[0] + n_classes));
+                int actual_l = std::distance(
+                    &vec_l[0],
+                    std::max_element(&vec_l[0], &vec_l[0] + n_classes));
+                n_correct += (pred_l == actual_l);
+            }
+            printf("accuracy: %f\n", (double) n_correct / n_test_samples);
+        }
     }
 
     return 0;

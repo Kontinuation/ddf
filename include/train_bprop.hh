@@ -89,7 +89,6 @@ public:
                 kv.second.fill(0);
             }
 
-            // calculate derivative for each sampl
             _training_loss = 0;
 
             // select a batch randomly
