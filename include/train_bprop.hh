@@ -62,20 +62,6 @@ public:
             }
         }
 
-        // calculate initial loss
-        ddf::vector<numeric_type> y;
-        _training_loss = 0;
-        for (int k = 0; k < _n_samples; k++) {
-            for (auto &kv: _feed_var) {
-                const std::string &var = kv.first;
-                const matrix_type &arr_var = _feed_dict->find(var)->second;
-                varexpr_type *var_expr = kv.second;
-                var_expr->_val.copy_from(&arr_var(k, 0));
-            }
-            _loss_expr->eval(y);
-            _training_loss += y[0] / _n_samples;
-        }
-
         this->dbg_dump();
     }
 

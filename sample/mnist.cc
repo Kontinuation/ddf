@@ -72,10 +72,10 @@ bool load_label_data(const char *data_file, ddf::matrix<float> &td) {
 
 
 int main(int argc, char *argv[]) {
-    if (argc < 5) {
+    if (argc < 6) {
         printf(
-            "usage: %s train train_data train_label out_model_file\n"
-            "       %s predict test_data test_label model_file\n",
+            "usage: %s train train_data train_label model_type out_model_file\n"
+            "       %s predict test_data test_label model_type model_file\n",
             argv[0], argv[0]);
         return 0;
     }
@@ -83,10 +83,11 @@ int main(int argc, char *argv[]) {
     const char *cmd = argv[1];
     const char *data_file = argv[2];
     const char *label_file = argv[3];
-    const char *model_file = argv[4];
+    const char *model_type = argv[4];
+    const char *model_file = argv[5];
     float alpha = 0.1;
-    if (argc > 5) {
-        alpha = atof(argv[5]);
+    if (argc > 6) {
+        alpha = atof(argv[6]);
     }
 
     ddf::matrix<float> xs(0,0), ls(0,0);    
@@ -113,19 +114,30 @@ int main(int argc, char *argv[]) {
         "dimension: %d, n_samples: %d, n_classes: %d",
         dimension, n_samples, n_classes);
 
-    // for (int i = 0; i < 10; i++) {
-    //     show_fea_as_image(&train(i,0), 28, 28);
-    //     printf("%s\n", ddf::vector<float>(10, &label(i,0)).to_string().c_str());
-    // }
+    // show some data
+    for (int i = 0; i < 10; i++) {
+        show_fea_as_image(&xs(i,0), 28, 28);
+        printf("%s\n", ddf::vector<float>(10, &ls(i,0)).to_string().c_str());
+    }
     
     ddf::variable<float> *var_x = 
         new ddf::variable<float>("x", ddf::vector<float>(dimension));
     ddf::variable<float> *var_l = 
         new ddf::variable<float>("l", ddf::vector<float>(n_classes));
 
-    // auto predict = fc_2_model(var_x, var_l, xs, ls, 20);
-    auto predict = fc_1_model(var_x, var_l, xs, ls);
-    // auto predict = conv_model(var_x, var_l, xs, ls);
+    ddf::math_expr<float> *predict = nullptr;
+    if (!strcmp(model_type, "conv")) {
+        predict = conv_model(var_x, var_l, xs, ls);
+    } else if (!strcmp(model_type, "fc2")) {
+        predict = fc_2_model(var_x, var_l, xs, ls, 20);
+    } else if (!strcmp(model_type, "fc1")) {
+        predict = fc_1_model(var_x, var_l, xs, ls);
+    } else {
+        logging::error(
+            "unknown model type: %s, should be conv, fc2 or fc1",
+            model_type);
+        return -1;
+    }
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<float>();
     auto loss = std::unique_ptr<ddf::math_expr<float> >(
@@ -139,10 +151,6 @@ int main(int argc, char *argv[]) {
         {"l", ls }
     };
     optimizer.minimize(loss.get(), &feed_dict);
-
-    // initial loss
-    float training_loss = optimizer.loss();
-    logging::info("initial loss: %f", training_loss);
 
     // perform iterative optimization to reduce training loss
     optimizer.set_learning_rate(alpha);

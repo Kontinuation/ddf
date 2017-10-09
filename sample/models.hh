@@ -188,7 +188,6 @@ ddf::math_expr<numeric_type> *conv_model(
 
     auto dropout_0 = new ddf::dropout<numeric_type>(0.5);
     auto dropout_1 = new ddf::dropout<numeric_type>(0.5);
-    auto dropout_2 = new ddf::dropout<numeric_type>(0.5);
     
     // predict:
     //   conv0 -> relu0 -> pool0
