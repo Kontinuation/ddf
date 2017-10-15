@@ -76,65 +76,75 @@ public:
 
     // fetch current training loss
     virtual numeric_type loss(void) {
-        return _training_loss;
+        return _training_loss/ _n_samples;
     }
 
     // run iterative training algorithm
     virtual void step(int n_epochs) {
         ddf::backpropagation<numeric_type> bprop;
         ddf::vector<numeric_type> loss;
-        for (int iter = 0; iter < n_epochs; iter++) {
-            // initialize accumulative derivatives
-            for (auto &kv: _derivative) {
-                kv.second.fill(0);
-            }
 
+        for (int iter = 0; iter < n_epochs; iter++) {
             _training_loss = 0;
 
             // select a batch randomly
             std::vector<unsigned int> batch_idx(_n_samples);
             std::iota(batch_idx.begin(), batch_idx.end(), 0);
             std::random_shuffle(batch_idx.begin(), batch_idx.end());
-            int batch_size = std::min(_batch_size, _n_samples);
-
-            // reinitialize operators before processing this batch
-            set_expr_working_mode(_loss_expr, TRAINING);
-
-            // train on this batch
-            for (int k = 0; k < batch_size; k++) {
-                int i_sample = batch_idx[k];
-
-                // set value for feeded variables
-                for (auto &kv: _feed_var) {
-                    const std::string &var = kv.first;
-                    const matrix_type &arr_var = _feed_dict->find(var)->second;
-                    varexpr_type *var_expr = kv.second;
-                    var_expr->_val.copy_from(&arr_var(i_sample, 0));
+            int n_batches = (_n_samples + _batch_size - 1) / _batch_size;
+            for (int i_batch = 0; i_batch < n_batches; i_batch++) {
+                // reinitialize operators and init accumulative derivatives
+                // before processing this batch
+                set_expr_working_mode(_loss_expr, TRAINING);
+                for (auto &kv: _derivative) {
+                    kv.second.fill(0);
                 }
 
-                // perform backpropagation
-                bprop_expr(_loss_expr, loss);
-                _training_loss += (loss[0] / _batch_size);
+                // accumulate errors on this batch
+                int batch_begin = i_batch * _batch_size;
+                int batch_end = std::min((i_batch + 1) * _batch_size, _n_samples);
+                int batch_samples = batch_end - batch_begin;
+                numeric_type batch_loss = 0;
+                for (int k = batch_begin; k < batch_end; k++) {
+                    int i_sample = batch_idx[k];
 
-                // accumulate gradients of parameters
+                    // set value for feeded variables
+                    for (auto &kv: _feed_var) {
+                        const std::string &var = kv.first;
+                        const matrix_type &arr_var = _feed_dict->find(var)->second;
+                        varexpr_type *var_expr = kv.second;
+                        var_expr->_val.copy_from(&arr_var(i_sample, 0));
+                    }
+
+                    // perform backpropagation
+                    bprop_expr(_loss_expr, loss);
+                    _training_loss += loss[0];
+                    batch_loss += loss[0];
+
+                    // accumulate gradients of parameters
+                    for (auto &kv: _param_var) {
+                        const std::string &var = kv.first;
+                        varexpr_type *var_expr = kv.second;
+                        _derivative[var] += var_expr->delta;
+                    }
+                }
+
+                // update parameters according to their derivatives
                 for (auto &kv: _param_var) {
                     const std::string &var = kv.first;
                     varexpr_type *var_expr = kv.second;
-                    _derivative[var] += var_expr->delta;
-                }
-            }
-
-            // update parameters according to their derivatives
-            for (auto &kv: _param_var) {
-                const std::string &var = kv.first;
-                varexpr_type *var_expr = kv.second;
-                vector_type &sum_deriv = _derivative[var];
+                    vector_type &sum_deriv = _derivative[var];
 #ifdef DEBUG_ACT_DISTRIB
-                numeric_type step_len = sum_deriv.dot(sum_deriv) / _batch_size;
-                logging::info("step_len of %s: %f", var.c_str(), step_len);
+                    numeric_type step_len = sum_deriv.dot(sum_deriv) / batch_samples;
+                    logging::info("step_len of %s: %f", var.c_str(), step_len);
 #endif
-                sum_deriv *= (_alpha / _batch_size);
-                var_expr->_val -= sum_deriv;
+                    sum_deriv *= (_alpha / batch_samples);
+                    var_expr->_val -= sum_deriv;
+                }
+
+                logging::info("batch #%d [%d-%d), samples: %d, loss: %f",
+                    i_batch, batch_begin, batch_end,
+                    batch_samples, batch_loss / batch_samples);
             }
         }
     }
