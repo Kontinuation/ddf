@@ -42,9 +42,11 @@ int main(int argc, char *argv[]) {
         new ddf::variable<double>("x", ddf::vector<double>(2));
     ddf::variable<double> *var_l = 
         new ddf::variable<double>("l", ddf::vector<double>(K));
-    
-    // auto predict = fc_1_model(var_x, var_l, xs, ls);
-    auto predict = fc_2_model(var_x, var_l, xs, ls, n_hidden);
+
+    std::vector<ddf::variable<double> *> vec_vars;
+
+    // auto predict = fc_1_model(var_x, var_l, xs, ls, vec_vars);
+    auto predict = fc_2_model(var_x, var_l, xs, ls, n_hidden, vec_vars);
 
     auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
     auto loss = std::unique_ptr<ddf::math_expr<double> >(

@@ -118,8 +118,8 @@ public:
 
                     // perform backpropagation
                     bprop_expr(_loss_expr, loss);
-                    _training_loss += loss[0];
                     batch_loss += loss[0];
+                    _training_loss += loss[0];
 
                     // accumulate gradients of parameters
                     for (auto &kv: _param_var) {
@@ -142,9 +142,11 @@ public:
                     var_expr->_val -= sum_deriv;
                 }
 
-                logging::info("batch #%d [%d-%d), samples: %d, loss: %f",
-                    i_batch, batch_begin, batch_end,
-                    batch_samples, batch_loss / batch_samples);
+                if (_show_mini_batch_loss) {
+                    logging::info("batch #%d [%d-%d), samples: %d, loss: %f",
+                        i_batch, batch_begin, batch_end,
+                        batch_samples, batch_loss / batch_samples);
+                }
             }
         }
     }
@@ -174,7 +176,8 @@ protected:
     const std::map<std::string, matrix_type> *_feed_dict = nullptr;
     int _n_samples = 0;
     int _batch_size = 256;
-    numeric_type _alpha = 0.1; 
+    numeric_type _alpha = 0.1;
+    bool _show_mini_batch_loss = true;
     std::map<std::string, varexpr_type *> _feed_var;
     std::map<std::string, varexpr_type *> _param_var;
     std::map<std::string, vector_type> _derivative;

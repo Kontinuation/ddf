@@ -2,6 +2,7 @@
 #define _GRAD_CHECK_H_
 
 #include "expr.hh"
+#include "bprop.hh"
 
 namespace ddf {
 
@@ -49,8 +50,8 @@ bool vector_diff(
     } else {
         numeric_type rel_err = diff / denom;
         if (rel_err > delta) {
-            logging::debug(
-                "rel_err: %f, diff: %f, denom: %f\n",
+            logging::warning(
+                "rel_err: %f, diff: %f, denom: %f",
                 rel_err, diff, denom);
             return true;
         }
