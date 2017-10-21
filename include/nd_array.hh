@@ -211,6 +211,10 @@ struct nd_array_base {
         return ss.str();
     }
 
+    const char *c_str(void) const {
+        return to_string().c_str();
+    }
+
     // simple arithmetics
     nd_array_base &operator += (const nd_array_base &v) {
         assert_same_size(v);
@@ -264,6 +268,18 @@ struct nd_array_base {
         static dist_type dist;
         for (int k = 0; k < _buf_size; k++) {
             _raw_data[k] = dist(eng, param_type(min, max));
+        }
+    }
+
+    // fill random numbers from standard normal distribution with given mean
+    // and standard variation
+    void fill_randn(numeric_type mean = 0.0, numeric_type stdvar = 1.0) {
+        using dist_type = std::normal_distribution<numeric_type>;
+        using param_type = typename dist_type::param_type;
+        static std::default_random_engine eng;
+        static dist_type dist;
+        for (int k = 0; k < _buf_size; k++) {
+            _raw_data[k] = dist(eng, param_type(mean, stdvar));
         }
     }
 

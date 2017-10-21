@@ -74,6 +74,10 @@ public:
         _batch_size = batch_size;
     }
 
+    virtual void toggle_debug_log(bool onoff) {
+        _show_mini_batch_loss = onoff;
+    }
+
     // fetch current training loss
     virtual numeric_type loss(void) {
         return _training_loss/ _n_samples;
@@ -177,7 +181,7 @@ protected:
     int _n_samples = 0;
     int _batch_size = 256;
     numeric_type _alpha = 0.1;
-    bool _show_mini_batch_loss = true;
+    bool _show_mini_batch_loss = false;
     std::map<std::string, varexpr_type *> _feed_var;
     std::map<std::string, varexpr_type *> _param_var;
     std::map<std::string, vector_type> _derivative;

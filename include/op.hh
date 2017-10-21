@@ -130,12 +130,15 @@ public:
     }
 
     int size_f() {
+        if (_w.size() != _l.size()) {
+            throw exception(
+                "prediction size does not match with label");
+        }
         return 1;
     }
 
     void f(vector_type &y) {
         int n = _w.size();
-        assert(("prediction size should match with label", n == _l.size()));
         numeric_type sum_ce = 0;
         for (int k = 0; k < n; k++) {
             sum_ce -= _l[k] * log(_exp_w[k]);
@@ -164,7 +167,124 @@ protected:
     vector_type _exp_w;
 };
 
-// Rectifier
+// sum cross_entropy(label, softmax(x)) where label in labels
+template <typename numeric_type>
+class mean_square_error: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+    
+    mean_square_error(void)
+        : math_op<numeric_type>("MSE", 2) {
+    }
+
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            _z = v;
+        } else if (k_param == 1) {
+            _l = v;
+        }
+    }
+
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _z;
+        else if (k_param == 1) return _l;
+        else return vector_type();
+    }
+
+    int size_f() {
+        if (_z.size() != _l.size()) {
+            throw exception(
+                "prediction size does not match with label");
+        }
+        return 1;
+    }
+
+    void f(vector_type &y) {
+        int n = _z.size();
+        numeric_type sum_ce = 0;
+        for (int k = 0; k < n; k++) {
+            numeric_type delta = _z[k] - _l[k];
+            sum_ce += (delta * delta);
+        }
+        y.resize(1);
+        y[0] = 0.5 * sum_ce;
+    }
+
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
+        assert_param_dim(k_param);
+        if (k_param == 0) {
+            int n = _z.size();
+            d.resize(n);
+            for (int k = 0; k < n; k++) {
+                d[k] = _z[k] - _l[k];
+            }
+        } else {
+            // bprop of label _l is not useful since label should always be a
+            // constant, so bprop of _l is not implemented
+        }
+    }
+
+protected:
+    vector_type _z;
+    vector_type _l;
+};
+
+template <typename numeric_type>
+class sigmoid: public math_op<numeric_type> {
+public:
+    typedef vector<numeric_type> vector_type;
+    typedef matrix<numeric_type> matrix_type;
+    
+    sigmoid(): math_op<numeric_type>("sigmoid", 1) {
+    }
+
+    void prepare(int k_param, const vector_type &v) {
+        assert_param_dim(k_param);
+        _x = v;
+        int n = _x.size();
+        _sig_x.resize(n);
+        for (int k = 0; k < n; ++k) {
+            _sig_x[k] = 1.0 / (1.0 + std::exp(-_x[k]));
+        }
+    }
+    
+    vector_type get_param(int k_param) {
+        assert_param_dim(k_param);
+        if (k_param == 0) return _x;
+        else return vector_type();
+    }
+
+    int size_f() {
+        return _x.size();
+    }
+
+    void f(vector_type &y) {
+        int n = _x.size();
+        y.resize(n);
+        for (int k = 0; k < n; k++) {
+            y[k] = _sig_x[k];
+        }
+    }
+
+    void bprop(int k_param, const vector_type &dy, vector_type &d) {
+        assert_param_dim(k_param);
+        int n = _x.size();
+        d.resize(n);
+        for (int k = 0; k < n; k++) {
+            numeric_type sigmoid_z = _sig_x[k];
+            d[k] = sigmoid_z * (1 - sigmoid_z) * dy[k];
+        }
+    }
+
+protected:
+    vector_type _x;
+    vector_type _sig_x;
+};
+
+// Rectified linear unit
 template <typename numeric_type>
 class relu: public math_op<numeric_type> {
 public:
