@@ -5,7 +5,7 @@
 #include "dataset.hh"
 #include "models.hh"
 
-void show_fea_as_image(const double *fea, int w, int h, double threshold = -0.2) {
+void show_fea_as_image(const double *fea, int w, int h, double threshold = 0.5) {
     for (int i = 0; i < w; i++) {
         for (int j = 0; j < h; j++) {
             putc(fea[i * w + j] < threshold? ' ': '.', stdout);
@@ -37,7 +37,8 @@ bool load_image_data(const char *data_file, ddf::matrix<double> &td) {
     uint8_t *p_val = (uint8_t *) ds.val();
     for (int i = 0; i < n_samples; i++) {
         for (int j = 0; j < sample_size; j++) {
-            td(i, j) = (*p_val / 255.0 - 0.5);
+            // load normalized data
+            td(i, j) = (*p_val / 255.0);
             p_val++;
         }
     }
@@ -110,8 +111,8 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    int n_train_samples = 10000;
-    int n_test_samples = 1000;
+    int n_train_samples = n_samples - 10000;
+    int n_test_samples = 10000;
     ddf::matrix<double> xs(n_train_samples, dimension, &images(0,0));
     ddf::matrix<double> ls(n_train_samples, n_classes, &labels(0,0));
     ddf::matrix<double> txs(n_test_samples, dimension, &images(n_train_samples, 0));
@@ -141,7 +142,12 @@ int main(int argc, char *argv[]) {
     std::vector<ddf::variable<double> *> vec_vars;
 
     ddf::math_expr<double> *predict = nullptr;
-    if (!strcmp(model_type, "medium_conv")) {
+    std::unique_ptr<ddf::math_expr<double> > loss;
+    if (!strcmp(model_type, "fc1_sigmoid")) {
+        predict = fc_1_sigmoid_model(var_x, var_l, xs, ls, vec_vars);
+    } else if (!strcmp(model_type, "fc2_sigmoid")) {
+        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 100, vec_vars);
+    } else if (!strcmp(model_type, "medium_conv")) {
         predict = conv_model_medium(var_x, var_l, xs, ls, vec_vars);
     } else if (!strcmp(model_type, "small_conv")) {
         predict = conv_model_small(var_x, var_l, xs, ls, vec_vars);
@@ -150,7 +156,7 @@ int main(int argc, char *argv[]) {
     } else if (!strcmp(model_type, "fc3")) {
         predict = fc_3_model(var_x, var_l, xs, ls, 100, 100, vec_vars);
     } else if (!strcmp(model_type, "fc2")) {
-        predict = fc_2_model(var_x, var_l, xs, ls, 20, vec_vars);
+        predict = fc_2_model(var_x, var_l, xs, ls, 30, vec_vars);
     } else if (!strcmp(model_type, "fc1")) {
         predict = fc_1_model(var_x, var_l, xs, ls, vec_vars);
     } else {
@@ -161,10 +167,35 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
-    auto loss = std::unique_ptr<ddf::math_expr<double> >(
-        new ddf::function_call<double>(
-            DS, predict, var_l));
+    if (strstr(model_type, "sigmoid")) {
+        auto MSE = new ddf::mean_square_error<double>();
+        loss.reset(new ddf::function_call<double>(MSE, predict, var_l));
+    } else {
+        auto DS = new ddf::softmax_cross_entropy_with_logits<double>();
+        loss.reset(new ddf::function_call<double>(DS, predict, var_l));
+    }       
+
+#ifdef MNIST_CHECK_GRAD
+    for (int k = 0; k < 10; k++) {
+        auto &vec_x = var_x->value();
+        auto &vec_l = var_l->value();
+        ddf::vector<double> y;
+        vec_x.fill_rand();
+        vec_l.fill(0);
+        vec_l[0] = 1.0;
+        loss->eval(y);
+        y[0] = 1;
+        bool x_diff = grad_check(loss.get(), var_x, y);
+        printf("grad_check x_diff: %d\n", x_diff);
+        for (auto var: vec_vars) {
+            loss->eval(y);
+            y[0] = 1;
+            x_diff = grad_check(loss.get(), var, y);
+            printf("grad_check %s_diff: %d\n",
+                var->to_string().c_str(), x_diff);
+        }
+    }
+#endif
         
     // construct optimizer
     ddf::optimizer_bprop<double> optimizer;
@@ -176,6 +207,7 @@ int main(int argc, char *argv[]) {
 
     // perform iterative optimization to reduce training loss
     optimizer.set_learning_rate(alpha);
+    optimizer.set_batch_size(10);
     ddf::vector<double> y;
     for (int iter = 0; iter < 100000; iter++) {
         clock_t start = clock();

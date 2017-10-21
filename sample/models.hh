@@ -43,6 +43,47 @@ ddf::math_expr<numeric_type> *fc_1_model(
     return predict;
 }
 
+template <typename numeric_type>
+ddf::math_expr<numeric_type> *fc_1_sigmoid_model(
+    ddf::variable<numeric_type> *var_x, ddf::variable<numeric_type> *var_l, 
+    const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls,
+    std::vector<ddf::variable<numeric_type> *> &vec_vars)
+{
+    // -- identify problem size --
+    int dimension = xs.shape(1);
+    int n_classes = ls.shape(1);
+        
+    // -- prepare deep model --
+    int len_w0 = n_classes * dimension;
+    int len_b0 = n_classes;
+
+    ddf::variable<numeric_type> *var_w0 =
+        new ddf::variable<numeric_type>("w0", ddf::vector<numeric_type>(len_w0));
+    ddf::variable<numeric_type> *var_b0 =
+        new ddf::variable<numeric_type>("b0", ddf::vector<numeric_type>(len_b0));
+
+    // initial value of hyper parameters
+    var_w0->value().fill_rand();
+    var_b0->value().fill_rand();
+
+    vec_vars.push_back(var_w0);
+    vec_vars.push_back(var_b0);
+ 
+    // predict: sigmoid(w0 * x + b0)
+    auto matmul_0 = new ddf::matrix_mult<numeric_type>();
+    auto sigmoid_0 = new ddf::sigmoid<numeric_type>();
+    auto predict =
+        new ddf::function_call<numeric_type>(
+            sigmoid_0,
+            new ddf::addition<numeric_type>(
+                new ddf::function_call<numeric_type>(
+                    matmul_0,
+                    var_w0, 
+                    var_x),
+                var_b0));
+
+    return predict;
+}
 
 template <typename numeric_type>
 ddf::math_expr<numeric_type> *fc_2_model(
@@ -70,18 +111,17 @@ ddf::math_expr<numeric_type> *fc_2_model(
         new ddf::variable<numeric_type>("b1", ddf::vector<numeric_type>(len_b1));
 
     // initial value of hyper parameters
-    var_w0->value().fill_rand();
-    var_b0->value().fill_rand();
-    var_w1->value().fill_rand();
-    var_b1->value().fill_rand();
+    var_w0->value().fill_randn();
+    var_b0->value().fill_randn();
+    var_w1->value().fill_randn();
+    var_b1->value().fill_randn();
 
     vec_vars.push_back(var_w0);
     vec_vars.push_back(var_b0);
     vec_vars.push_back(var_w1);
     vec_vars.push_back(var_b1);
 
-    // auto dropout_0 = new ddf::dropout<numeric_type>(0.5);
-    auto dropout_0 = new ddf::dropout<numeric_type>(1.0);
+    auto dropout_0 = new ddf::dropout<numeric_type>(0.5);
         
     // predict: w1 * (relu(w0 * x + b0)) + b1
     auto matmul_0 = new ddf::matrix_mult<numeric_type>();
@@ -103,6 +143,67 @@ ddf::math_expr<numeric_type> *fc_2_model(
                                 var_x),
                             var_b0)))),
             var_b1);
+
+    return predict;
+}
+
+template <typename numeric_type>
+ddf::math_expr<numeric_type> *fc_2_sigmoid_model(
+    ddf::variable<numeric_type> *var_x, ddf::variable<numeric_type> *var_l, 
+    const ddf::matrix<numeric_type> &xs, const ddf::matrix<numeric_type> &ls,
+    int n_hidden, std::vector<ddf::variable<numeric_type> *> &vec_vars)
+{
+    // -- identify problem size --
+    int dimension = xs.shape(1);
+    int n_classes = ls.shape(1);
+        
+    // -- prepare deep model --
+    int len_w0 = n_hidden * dimension;
+    int len_b0 = n_hidden;
+    int len_w1 = n_classes * n_hidden;
+    int len_b1 = n_classes;
+
+    ddf::variable<numeric_type> *var_w0 =
+        new ddf::variable<numeric_type>("w0", ddf::vector<numeric_type>(len_w0));
+    ddf::variable<numeric_type> *var_b0 =
+        new ddf::variable<numeric_type>("b0", ddf::vector<numeric_type>(len_b0));
+    ddf::variable<numeric_type> *var_w1 =
+        new ddf::variable<numeric_type>("w1", ddf::vector<numeric_type>(len_w1));
+    ddf::variable<numeric_type> *var_b1 =
+        new ddf::variable<numeric_type>("b1", ddf::vector<numeric_type>(len_b1));
+
+    // initial value of hyper parameters
+    var_w0->value().fill_randn();
+    var_b0->value().fill_randn();
+    var_w1->value().fill_randn();
+    var_b1->value().fill_randn();
+
+    vec_vars.push_back(var_w0);
+    vec_vars.push_back(var_b0);
+    vec_vars.push_back(var_w1);
+    vec_vars.push_back(var_b1);
+        
+    // predict: sigmoid(w1 * (sigmoid(w0 * x + b0)) + b1)
+    auto matmul_0 = new ddf::matrix_mult<numeric_type>();
+    auto matmul_1 = new ddf::matrix_mult<numeric_type>();
+    auto sigmoid_0 = new ddf::sigmoid<numeric_type>();
+    auto sigmoid_1 = new ddf::sigmoid<numeric_type>();
+    auto predict =
+        new ddf::function_call<numeric_type>(
+            sigmoid_1,
+            new ddf::addition<numeric_type>(
+                new ddf::function_call<numeric_type>(
+                    matmul_1,
+                    var_w1,
+                    new ddf::function_call<numeric_type>(
+                        sigmoid_0,
+                        new ddf::addition<numeric_type>(
+                            new ddf::function_call<numeric_type>(
+                                matmul_0,
+                                var_w0, 
+                                var_x),
+                            var_b0))),
+                var_b1));
 
     return predict;
 }
