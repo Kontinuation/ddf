@@ -75,7 +75,7 @@ bool load_label_data(const char *data_file, ddf::matrix<double> &td) {
 int main(int argc, char *argv[]) {
     if (argc < 6) {
         printf(
-            "usage: %s train train_data train_label model_type out_model_file\n"
+            "usage: %s train train_data train_label model_type out_model_file alpha\n"
             "       %s predict test_data test_label model_type model_file\n",
             argv[0], argv[0]);
         return 0;
@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
     if (!strcmp(model_type, "fc1_sigmoid")) {
         predict = fc_1_sigmoid_model(var_x, var_l, xs, ls, vec_vars);
     } else if (!strcmp(model_type, "fc2_sigmoid")) {
-        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 100, vec_vars);
+        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 30, vec_vars);
     } else if (!strcmp(model_type, "medium_conv")) {
         predict = conv_model_medium(var_x, var_l, xs, ls, vec_vars);
     } else if (!strcmp(model_type, "small_conv")) {

@@ -264,7 +264,7 @@ struct nd_array_base {
     void fill_rand(numeric_type min = -1.0, numeric_type max = 1.0) {
         using dist_type = std::uniform_real_distribution<numeric_type>;
         using param_type = typename dist_type::param_type;
-        static std::default_random_engine eng;
+        static std::default_random_engine eng(std::random_device{}());
         static dist_type dist;
         for (int k = 0; k < _buf_size; k++) {
             _raw_data[k] = dist(eng, param_type(min, max));
@@ -276,7 +276,7 @@ struct nd_array_base {
     void fill_randn(numeric_type mean = 0.0, numeric_type stdvar = 1.0) {
         using dist_type = std::normal_distribution<numeric_type>;
         using param_type = typename dist_type::param_type;
-        static std::default_random_engine eng;
+        static std::default_random_engine eng(std::random_device{}());
         static dist_type dist;
         for (int k = 0; k < _buf_size; k++) {
             _raw_data[k] = dist(eng, param_type(mean, stdvar));
