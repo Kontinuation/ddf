@@ -143,10 +143,14 @@ int main(int argc, char *argv[]) {
 
     ddf::math_expr<double> *predict = nullptr;
     std::unique_ptr<ddf::math_expr<double> > loss;
-    if (!strcmp(model_type, "fc1_sigmoid")) {
+    if (!strcmp(model_type, "conv_tutorial")) {
+        predict = conv_tutorial_model(var_x, var_l, xs, ls, vec_vars);
+    } else if (!strcmp(model_type, "fc1_sigmoid")) {
         predict = fc_1_sigmoid_model(var_x, var_l, xs, ls, vec_vars);
     } else if (!strcmp(model_type, "fc2_sigmoid")) {
-        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 30, vec_vars);
+        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 100, vec_vars);
+    } else if (!strcmp(model_type, "fc3_sigmoid")) {
+        predict = fc_3_sigmoid_model(var_x, var_l, xs, ls, 100, 100, vec_vars);
     } else if (!strcmp(model_type, "medium_conv")) {
         predict = conv_model_medium(var_x, var_l, xs, ls, vec_vars);
     } else if (!strcmp(model_type, "small_conv")) {
@@ -208,6 +212,7 @@ int main(int argc, char *argv[]) {
     // perform iterative optimization to reduce training loss
     optimizer.set_learning_rate(alpha);
     optimizer.set_batch_size(10);
+    optimizer.toggle_debug_log(true);
     ddf::vector<double> y;
     for (int iter = 0; iter < 100000; iter++) {
         clock_t start = clock();
@@ -239,7 +244,7 @@ int main(int argc, char *argv[]) {
             printf("accuracy: %f\n", (double) n_correct / n_test_samples);
         }
 
-#define MNIST_CHECK_GRAD
+// #define MNIST_CHECK_GRAD
 #ifdef MNIST_CHECK_GRAD
         int k = (rand() % n_test_samples);
         auto &vec_x = var_x->value();
