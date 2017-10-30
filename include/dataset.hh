@@ -5,6 +5,7 @@
 #include <fstream>
 #include <errno.h>
 #include <algorithm>
+#include <memory>
 #include "logging.hh"
 
 

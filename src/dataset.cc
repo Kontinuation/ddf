@@ -1,5 +1,6 @@
 #include "dataset.hh"
 #include <algorithm>
+#include <string.h>
 
 
 inline void reverse_bytes(void *buf, int len) {
