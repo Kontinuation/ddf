@@ -10,6 +10,7 @@
 #include "bprop.hh"
 #include "train_bprop.hh"
 #include "grad_check.hh"
+#include "persist_vars.hh"
 #include "draw_expr.hh"
 
 #endif /* DEEP_DARK_FANTASY_H */

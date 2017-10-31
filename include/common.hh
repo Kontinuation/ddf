@@ -30,6 +30,19 @@ protected:
     std::string _msg;
 };
 
+// type to id
+template <typename numeric_type>
+struct numeric_type_id {
+};
+
+template <> struct numeric_type_id<float> {
+    static const unsigned int value = 1;
+};
+
+template <> struct numeric_type_id<double> {
+    static const unsigned int value = 2;
+};
+
 } // end namespace ddf
 
 #endif /* _COMMON_H_ */

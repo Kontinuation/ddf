@@ -111,28 +111,12 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    int n_train_samples = n_samples - 10000;
-    int n_test_samples = 10000;
-    ddf::matrix<double> xs(n_train_samples, dimension, &images(0,0));
-    ddf::matrix<double> ls(n_train_samples, n_classes, &labels(0,0));
-    ddf::matrix<double> txs(n_test_samples, dimension, &images(n_train_samples, 0));
-    ddf::matrix<double> tls(n_test_samples, n_classes, &labels(n_train_samples,0));
-
     logging::info(
         "dimension: %d, n_samples: %d, n_classes: %d",
         dimension, n_samples, n_classes);
 
-    // show some data
-    for (int i = 0; i < 10; i++) {
-        show_fea_as_image(&xs(i,0), 28, 28);
-        printf("%s\n", ddf::vector<double>(10, &ls(i,0)).to_string().c_str());
-    }
-
-    // show some data
-    for (int i = 0; i < 10; i++) {
-        show_fea_as_image(&txs(i,0), 28, 28);
-        printf("%s\n", ddf::vector<double>(10, &tls(i,0)).to_string().c_str());
-    }
+    ddf::matrix<double> xs(1, dimension);
+    ddf::matrix<double> ls(1, n_classes);
     
     ddf::variable<double> *var_x = 
         new ddf::variable<double>("x", ddf::vector<double>(dimension));
@@ -148,7 +132,7 @@ int main(int argc, char *argv[]) {
     } else if (!strcmp(model_type, "fc1_sigmoid")) {
         predict = fc_1_sigmoid_model(var_x, var_l, xs, ls, vec_vars);
     } else if (!strcmp(model_type, "fc2_sigmoid")) {
-        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 100, vec_vars);
+        predict = fc_2_sigmoid_model(var_x, var_l, xs, ls, 30, vec_vars);
     } else if (!strcmp(model_type, "fc3_sigmoid")) {
         predict = fc_3_sigmoid_model(var_x, var_l, xs, ls, 100, 100, vec_vars);
     } else if (!strcmp(model_type, "medium_conv")) {
@@ -200,69 +184,133 @@ int main(int argc, char *argv[]) {
         }
     }
 #endif
+
+    if (!strcmp(cmd, "train")) {
+        // split data into training set and validation set
+        int n_train_samples = n_samples - 10000;
+        int n_test_samples = 10000;
+        ddf::matrix<double> xs(n_train_samples, dimension, &images(0,0));
+        ddf::matrix<double> ls(n_train_samples, n_classes, &labels(0,0));
+        ddf::matrix<double> txs(n_test_samples, dimension, &images(n_train_samples, 0));
+        ddf::matrix<double> tls(n_test_samples, n_classes, &labels(n_train_samples,0));
         
-    // construct optimizer
-    ddf::optimizer_bprop<double> optimizer;
-    std::map<std::string, ddf::matrix<double> > feed_dict = {
-        {"x", xs },
-        {"l", ls }
-    };
-    optimizer.minimize(loss.get(), &feed_dict);
+        // show some data
+        for (int i = 0; i < 10; i++) {
+            show_fea_as_image(&xs(i,0), 28, 28);
+            printf("%s\n", ddf::vector<double>(10, &ls(i,0)).to_string().c_str());
+        }
 
-    // perform iterative optimization to reduce training loss
-    optimizer.set_learning_rate(alpha);
-    optimizer.set_batch_size(10);
-    optimizer.toggle_debug_log(true);
-    ddf::vector<double> y;
-    for (int iter = 0; iter < 100000; iter++) {
-        clock_t start = clock();
-        optimizer.step(1);
-        clock_t end = clock();
-        logging::info("iter: %d, loss: %f, cost: %f sec",
-            iter, optimizer.loss(),
-            (double)(end - start) / CLOCKS_PER_SEC);
+        // show some data
+        for (int i = 0; i < 10; i++) {
+            show_fea_as_image(&txs(i,0), 28, 28);
+            printf("%s\n", ddf::vector<double>(10, &tls(i,0)).to_string().c_str());
+        }
 
-        // if (iter % 10 == 0) {
-        if (true) {
-            // evaluate model performance on test samples
+        // construct optimizer
+        ddf::optimizer_bprop<double> optimizer;
+        std::map<std::string, ddf::matrix<double> > feed_dict = {
+            {"x", xs },
+            {"l", ls }
+        };
+        optimizer.minimize(loss.get(), &feed_dict);
+
+        // perform iterative optimization to reduce training loss
+        optimizer.set_learning_rate(alpha);
+        optimizer.set_batch_size(10);
+        // optimizer.toggle_debug_log(true);
+        ddf::vector<double> y;
+        for (int iter = 0; iter < 100000; iter++) {
+            clock_t start = clock();
+            optimizer.step(1);
+            clock_t end = clock();
+            logging::info("iter: %d, loss: %f, cost: %f sec",
+                iter, optimizer.loss(),
+                (double)(end - start) / CLOCKS_PER_SEC);
+
+            // if (iter % 10 == 0) {
+            if (true) {
+                // evaluate model performance on test samples
+                auto &vec_x = var_x->value();
+                auto &vec_l = var_l->value();
+                int n_correct = 0;
+                for (int i = 0; i < n_test_samples; i++) {
+                    vec_x.copy_from(&txs(i, 0));
+                    vec_l.copy_from(&tls(i, 0));
+                    predict->eval(y);
+
+                    int pred_l = std::distance(
+                        &y[0],
+                        std::max_element(&y[0], &y[0] + n_classes));
+                    int actual_l = std::distance(
+                        &vec_l[0],
+                        std::max_element(&vec_l[0], &vec_l[0] + n_classes));
+                    n_correct += (pred_l == actual_l);
+                }
+                printf("accuracy: %f\n", (double) n_correct / n_test_samples);
+            }
+
+            // #define MNIST_CHECK_GRAD
+#ifdef MNIST_CHECK_GRAD
+            int k = (rand() % n_test_samples);
             auto &vec_x = var_x->value();
             auto &vec_l = var_l->value();
-            int n_correct = 0;
-            for (int i = 0; i < n_test_samples; i++) {
-                vec_x.copy_from(&txs(i, 0));
-                vec_l.copy_from(&tls(i, 0));
-                predict->eval(y);
-
-                int pred_l = std::distance(
-                    &y[0],
-                    std::max_element(&y[0], &y[0] + n_classes));
-                int actual_l = std::distance(
-                    &vec_l[0],
-                    std::max_element(&vec_l[0], &vec_l[0] + n_classes));
-                n_correct += (pred_l == actual_l);
-            }
-            printf("accuracy: %f\n", (double) n_correct / n_test_samples);
-        }
-
-// #define MNIST_CHECK_GRAD
-#ifdef MNIST_CHECK_GRAD
-        int k = (rand() % n_test_samples);
-        auto &vec_x = var_x->value();
-        auto &vec_l = var_l->value();
-        vec_x.copy_from(&txs(k, 0));
-        vec_l.copy_from(&tls(k, 0));
-        loss->eval(y);
-        y[0] = 1;
-        bool x_diff = grad_check(loss.get(), var_x, y);
-        printf("grad_check x_diff: %d\n", x_diff);
-        for (auto var: vec_vars) {
+            vec_x.copy_from(&txs(k, 0));
+            vec_l.copy_from(&tls(k, 0));
             loss->eval(y);
             y[0] = 1;
-            x_diff = grad_check(loss.get(), var, y);
-            printf("grad_check %s_diff: %d\n",
-                var->to_string().c_str(), x_diff);
-        }
+            bool x_diff = grad_check(loss.get(), var_x, y);
+            printf("grad_check x_diff: %d\n", x_diff);
+            for (auto var: vec_vars) {
+                loss->eval(y);
+                y[0] = 1;
+                x_diff = grad_check(loss.get(), var, y);
+                printf("grad_check %s_diff: %d\n",
+                    var->to_string().c_str(), x_diff);
+            }
 #endif
+        
+            FILE *fp = fopen(model_file, "wb+");
+            if (!ddf::persist_vars(loss.get(), fp)) {
+                logging::error("failed to persist model to disk");
+            }
+            fclose(fp);
+        }
+    } else if (!strcmp(cmd, "predict")) {
+        FILE *fp = fopen(model_file, "rb");
+        if (!ddf::load_vars(loss.get(), fp)) {
+            logging::error("failed to load model from disk");
+            fclose(fp);
+            return -1;
+        }
+        fclose(fp);
+
+        ddf::matrix<double> txs(n_samples, dimension, &images(0,0));
+        ddf::matrix<double> tls(n_samples, n_classes, &labels(0,0));
+
+        // evaluate model performance on test samples
+        auto &vec_x = var_x->value();
+        auto &vec_l = var_l->value();
+        int n_correct = 0;
+
+        ddf::vector<double> y;
+        for (int i = 0; i < n_samples; i++) {
+            vec_x.copy_from(&txs(i, 0));
+            vec_l.copy_from(&tls(i, 0));
+            predict->eval(y);
+
+            int pred_l = std::distance(
+                &y[0],
+                std::max_element(&y[0], &y[0] + n_classes));
+            int actual_l = std::distance(
+                &vec_l[0],
+                std::max_element(&vec_l[0], &vec_l[0] + n_classes));
+            n_correct += (pred_l == actual_l);
+        }
+        printf("accuracy: %f\n", (double) n_correct / n_samples);
+        
+    } else {
+        logging::error("unrecognized command: %s", cmd);
+        return -1;
     }
 
     return 0;
