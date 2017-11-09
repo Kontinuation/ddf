@@ -419,9 +419,9 @@ ddf::math_expr<numeric_type> *conv_model_tiny(
             fc,
             var_w,
             new ddf::function_call<numeric_type>(
-                pool_0,
+                relu_0,
                 new ddf::function_call<numeric_type>(
-                    relu_0,
+                    pool_0,
                     new ddf::function_call<numeric_type>(
                         conv_0,
                         var_x, var_c0, var_b0))));
@@ -538,25 +538,25 @@ ddf::math_expr<numeric_type> *conv_model_small(
             fc,
             var_w,
             new ddf::function_call<numeric_type>(
-                pool_2,
+                relu_2,
                 new ddf::function_call<numeric_type>(
-                    relu_2,
+                    pool_2,
                     new ddf::function_call<numeric_type>(
                         conv_2,
                         new ddf::function_call<numeric_type>(
-                            dropout_1, 
+                            dropout_1,
                             new ddf::function_call<numeric_type>(
-                                pool_1,
+                                relu_1,
                                 new ddf::function_call<numeric_type>(
-                                    relu_1,
+                                    pool_1,
                                     new ddf::function_call<numeric_type>(
                                         conv_1,
                                         new ddf::function_call<numeric_type>(
-                                            dropout_0, 
+                                            dropout_0,
                                             new ddf::function_call<numeric_type>(
-                                                pool_0, 
+                                                relu_0, 
                                                 new ddf::function_call<numeric_type>(
-                                                    relu_0, 
+                                                    pool_0, 
                                                     new ddf::function_call<numeric_type>(
                                                         conv_0,
                                                         var_x, var_c0, var_b0)))),
@@ -676,25 +676,25 @@ ddf::math_expr<numeric_type> *conv_model_medium(
             fc,
             var_w,
             new ddf::function_call<numeric_type>(
-                pool_2,
+                relu_2,
                 new ddf::function_call<numeric_type>(
-                    relu_2,
+                    pool_2,
                     new ddf::function_call<numeric_type>(
                         conv_2,
                         new ddf::function_call<numeric_type>(
-                            dropout_1, 
+                            dropout_1,
                             new ddf::function_call<numeric_type>(
-                                pool_1,
+                                relu_1,
                                 new ddf::function_call<numeric_type>(
-                                    relu_1,
+                                    pool_1,
                                     new ddf::function_call<numeric_type>(
                                         conv_1,
                                         new ddf::function_call<numeric_type>(
-                                            dropout_0, 
+                                            dropout_0,
                                             new ddf::function_call<numeric_type>(
-                                                pool_0, 
+                                                relu_0, 
                                                 new ddf::function_call<numeric_type>(
-                                                    relu_0, 
+                                                    pool_0, 
                                                     new ddf::function_call<numeric_type>(
                                                         conv_0,
                                                         var_x, var_c0, var_b0)))),
@@ -753,6 +753,8 @@ ddf::math_expr<numeric_type> *conv_tutorial_model(
             "b2", ddf::vector<numeric_type>(10));
 
     auto sigmoid_0 = new ddf::sigmoid<numeric_type>();
+    auto sigmoid_1 = new ddf::sigmoid<numeric_type>();
+    auto sigmoid_2 = new ddf::sigmoid<numeric_type>();
 
     // initial value of hyper parameters
     var_c0->value().fill_randn();
@@ -768,26 +770,30 @@ ddf::math_expr<numeric_type> *conv_tutorial_model(
     vec_vars.push_back(var_b1);
     vec_vars.push_back(var_w2);
     vec_vars.push_back(var_b2);
-
+    
     ddf::math_expr<numeric_type> *predict =
-        new ddf::addition<numeric_type>(
-            new ddf::function_call<numeric_type>(
-                fc2,
-                var_w2,
+        new ddf::function_call<numeric_type>(
+            sigmoid_2, 
+            new ddf::addition<numeric_type>(
                 new ddf::function_call<numeric_type>(
-                    sigmoid_0,
-                    new ddf::addition<numeric_type>(
-                        new ddf::function_call<numeric_type>(
-                            fc1,
-                            var_w1,
+                    fc2,
+                    var_w2,
+                    new ddf::function_call<numeric_type>(
+                        sigmoid_1,
+                        new ddf::addition<numeric_type>(
                             new ddf::function_call<numeric_type>(
-                                pool_0,
+                                fc1,
+                                var_w1,
                                 new ddf::function_call<numeric_type>(
-                                    conv_0,
-                                    var_x, var_c0, var_b0))),
-                        var_b1))),
-            var_b2);
-        
+                                    pool_0,
+                                    // new ddf::function_call<numeric_type>(
+                                    //     sigmoid_0,
+                                        new ddf::function_call<numeric_type>(
+                                            conv_0,
+                                            var_x, var_c0, var_b0))),
+                            var_b1))),
+                var_b2));
+
     return predict;
 }
 

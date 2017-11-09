@@ -5,6 +5,7 @@
 #include "dataset.hh"
 #include "models.hh"
 
+
 void show_fea_as_image(const double *fea, int w, int h, double threshold = 0.5) {
     for (int i = 0; i < w; i++) {
         for (int j = 0; j < h; j++) {
@@ -38,7 +39,7 @@ bool load_image_data(const char *data_file, ddf::matrix<double> &td) {
     for (int i = 0; i < n_samples; i++) {
         for (int j = 0; j < sample_size; j++) {
             // load normalized data
-            td(i, j) = (*p_val / 255.0);
+            td(i, j) = *p_val / 255.0;
             p_val++;
         }
     }
@@ -189,6 +190,7 @@ int main(int argc, char *argv[]) {
         // split data into training set and validation set
         int n_train_samples = n_samples - 10000;
         int n_test_samples = 10000;
+
         ddf::matrix<double> xs(n_train_samples, dimension, &images(0,0));
         ddf::matrix<double> ls(n_train_samples, n_classes, &labels(0,0));
         ddf::matrix<double> txs(n_test_samples, dimension, &images(n_train_samples, 0));

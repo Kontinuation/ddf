@@ -87,11 +87,8 @@ bool grad_check(
         expr->eval(neg);
         val[i] = old_val;
         pos -= neg;
-        // printf("diff: %s\n", pos.to_string().c_str());
         pos *= df;
-        // printf("diff * df: %s\n", pos.to_string().c_str());
         numerical_grad[i] = pos.sum() * multiplier;
-        // printf("grad [%d]: %f\n", i, numerical_grad[i]);
     }
 
     // evaluate bprop gradient
@@ -102,8 +99,11 @@ bool grad_check(
     expr->delta.copy_from(df);  // force set training err
     expr->apply(&bprop);
 
-    // printf("bprop delta: %s\n", var->delta.to_string().c_str());
-    // printf("numerical_grad: %s\n", numerical_grad.to_string().c_str());
+    // uncomment following lines if you want to figure out where the diff came
+    // from by looking at the data:
+    // 
+    //   printf("bprop delta: %s\n", var->delta.to_string().c_str());
+    //   printf("numerical_grad: %s\n", numerical_grad.to_string().c_str());
 
     // calculate diff
     return ddf::vector_diff(var->delta, numerical_grad, tol);
