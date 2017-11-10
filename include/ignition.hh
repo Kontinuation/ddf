@@ -5,6 +5,8 @@
 
 namespace ddf {
 
+// Clear accumulated delta on nodes in specified expression, should be called
+// before performing backpropagation
 template <typename numeric_type>
 class reset_delta : public math_expr_visitor<numeric_type> {
     virtual void apply(constant<numeric_type> *expr) {
@@ -32,6 +34,8 @@ class reset_delta : public math_expr_visitor<numeric_type> {
     }
 };
 
+// Reset operator which has internal states, such as dropout (stores dropout
+// masks inside the operator), etc.
 template <typename numeric_type>
 class reset_op : public math_expr_visitor<numeric_type> {
 public:
@@ -59,7 +63,7 @@ private:
     mode _m;
 };
 
-// easier to use functions so that you don't need to construct a visitor object
+// Easier to use functions so that you don't need to construct a visitor object
 // each time you want to reset your expression
 
 template <typename numeric_type>

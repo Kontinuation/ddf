@@ -208,48 +208,48 @@ int main(int argc, char *argv[]) {
             printf("%s\n", ddf::vector<double>(10, &tls(i,0)).to_string().c_str());
         }
 
-        // construct optimizer
-        ddf::optimizer_bprop<double> optimizer;
+        // construct trainer
+        ddf::train_bprop<double> trainer;
+        ddf::sgd_opt<double> opt(alpha / 10);
+        trainer.set_batch_size(10);
+        trainer.toggle_debug_log(true);
         std::map<std::string, ddf::matrix<double> > feed_dict = {
             {"x", xs },
             {"l", ls }
         };
-        optimizer.minimize(loss.get(), &feed_dict);
+        trainer.minimize(loss.get(), feed_dict, &opt);
 
         // perform iterative optimization to reduce training loss
-        optimizer.set_learning_rate(alpha);
-        optimizer.set_batch_size(10);
-        // optimizer.toggle_debug_log(true);
-        ddf::vector<double> y;
         for (int iter = 0; iter < 100000; iter++) {
             clock_t start = clock();
-            optimizer.step(1);
+            trainer.step(1);
             clock_t end = clock();
             logging::info("iter: %d, loss: %f, cost: %f sec",
-                iter, optimizer.loss(),
+                iter, trainer.loss(),
                 (double)(end - start) / CLOCKS_PER_SEC);
 
-            // if (iter % 10 == 0) {
-            if (true) {
-                // evaluate model performance on test samples
-                auto &vec_x = var_x->value();
-                auto &vec_l = var_l->value();
-                int n_correct = 0;
-                for (int i = 0; i < n_test_samples; i++) {
-                    vec_x.copy_from(&txs(i, 0));
-                    vec_l.copy_from(&tls(i, 0));
-                    predict->eval(y);
+            // evaluate model performance on test samples
+            auto &vec_x = var_x->value();
+            auto &vec_l = var_l->value();
+            ddf::vector<double> y;
+            int n_correct = 0;
+            for (int i = 0; i < n_test_samples; i++) {
+                vec_x.copy_from(&txs(i, 0));
+                vec_l.copy_from(&tls(i, 0));
+                predict->eval(y);
 
-                    int pred_l = std::distance(
-                        &y[0],
-                        std::max_element(&y[0], &y[0] + n_classes));
-                    int actual_l = std::distance(
-                        &vec_l[0],
-                        std::max_element(&vec_l[0], &vec_l[0] + n_classes));
-                    n_correct += (pred_l == actual_l);
-                }
-                printf("accuracy: %f\n", (double) n_correct / n_test_samples);
+                // figure out which class y indicates
+                int pred_l = std::distance(
+                    &y[0],
+                    std::max_element(&y[0], &y[0] + n_classes));
+                int actual_l = std::distance(
+                    &vec_l[0],
+                    std::max_element(&vec_l[0], &vec_l[0] + n_classes));
+
+                // check if the predicated class matches with label
+                n_correct += (pred_l == actual_l);
             }
+            logging::info("accuracy: %f\n", (double) n_correct / n_test_samples);
 
             // #define MNIST_CHECK_GRAD
 #ifdef MNIST_CHECK_GRAD

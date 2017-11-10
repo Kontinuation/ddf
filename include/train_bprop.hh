@@ -12,21 +12,27 @@
 
 #include "collect_vars.hh"
 #include "bprop.hh"
+#include "optimization.hh"
 
 namespace ddf {
 
 template <typename numeric_type>
-class optimizer_bprop {
+class train_bprop {
 public:
     typedef vector<numeric_type> vector_type;
     typedef matrix<numeric_type> matrix_type;
     typedef math_expr<numeric_type> expr_type;
     typedef variable<numeric_type> varexpr_type;
 
+    void set_optimizer(optimization<numeric_type> *opt) {
+        _opt = opt;
+    }
+
     // prepare to minimize loss on training samples specified in feed_dict
     virtual void minimize(
         expr_type *loss_expr, 
-        const std::map<std::string, matrix_type> *feed_dict) {
+        const std::map<std::string, matrix_type> &feed_dict,
+        optimization<numeric_type> *opt) {
 
         // validate expression
         ddf::check_size<numeric_type> checker;
@@ -35,11 +41,11 @@ public:
         // remember input arguments
         _feed_dict = feed_dict;
         _loss_expr = loss_expr;
-        if (_feed_dict->size() < 0) {
+        if (_feed_dict.size() < 0) {
             throw ddf::exception("feed_dict should not be empty");
         } else {
-            _n_samples = _feed_dict->begin()->second.shape(0);
-            for (auto &kv: *feed_dict) {
+            _n_samples = _feed_dict.begin()->second.shape(0);
+            for (auto &kv: _feed_dict) {
                 if (kv.second.shape(0) != _n_samples) {
                     throw ddf::exception(
                         "all matrices in feed_dict should have "
@@ -54,7 +60,7 @@ public:
         for (auto &s: visitor.vars()) {
             const std::string &var = s.first;
             varexpr_type *var_expr = s.second;
-            if (feed_dict->find(s.first) != feed_dict->end()) {
+            if (_feed_dict.find(s.first) != _feed_dict.end()) {
                 _feed_var.insert(s);
             } else {
                 _param_var.insert(s);
@@ -62,12 +68,13 @@ public:
             }
         }
 
-        this->dbg_dump();
-    }
+        // initialize optimizer
+        _opt = opt;
+        _opt->set_params(&_param_var);
+        _opt->reset();
 
-    // set learning rate
-    virtual void set_learning_rate(numeric_type alpha) {
-        _alpha = alpha;
+        // done
+        this->dbg_dump();
     }
 
     virtual void set_batch_size(int batch_size) {
@@ -75,7 +82,7 @@ public:
     }
 
     virtual void toggle_debug_log(bool onoff) {
-        _show_mini_batch_loss = onoff;
+        _show_debug_log = onoff;
     }
 
     // fetch current training loss
@@ -115,7 +122,7 @@ public:
                     // set value for feeded variables
                     for (auto &kv: _feed_var) {
                         const std::string &var = kv.first;
-                        const matrix_type &arr_var = _feed_dict->find(var)->second;
+                        const matrix_type &arr_var = _feed_dict[var];
                         varexpr_type *var_expr = kv.second;
                         var_expr->_val.copy_from(&arr_var(i_sample, 0));
                     }
@@ -134,19 +141,9 @@ public:
                 }
 
                 // update parameters according to their derivatives
-                for (auto &kv: _param_var) {
-                    const std::string &var = kv.first;
-                    varexpr_type *var_expr = kv.second;
-                    vector_type &sum_deriv = _derivative[var];
-#ifdef DEBUG_ACT_DISTRIB
-                    numeric_type step_len = sum_deriv.dot(sum_deriv) / batch_samples;
-                    logging::info("step_len of %s: %f", var.c_str(), step_len);
-#endif
-                    sum_deriv *= (_alpha / batch_samples);
-                    var_expr->_val -= sum_deriv;
-                }
+                _opt->update_params(_derivative);
 
-                if (_show_mini_batch_loss) {
+                if (_show_debug_log) {
                     logging::info("batch #%d [%d-%d), samples: %d, loss: %f",
                         i_batch, batch_begin, batch_end,
                         batch_samples, batch_loss / batch_samples);
@@ -157,31 +154,31 @@ public:
 
 protected:
     void dbg_dump(void) {
-#ifdef DEBUG_BPROP
-        logging::debug("loss_expr:");
-        logging::debug("  %s", _loss_expr->to_string().c_str());
+        if (_show_debug_log) {
+            logging::debug("loss_expr:");
+            logging::debug("  %s", _loss_expr->to_string().c_str());
 
-        logging::debug("feed_var:");
-        for (auto &kv: _feed_var) {
-            logging::debug("  %s: vector(%d)",
-                kv.first.c_str(), kv.second->value().size());
-        }
+            logging::debug("feed_var:");
+            for (auto &kv: _feed_var) {
+                logging::debug("  %s: vector(%d)",
+                    kv.first.c_str(), kv.second->value().size());
+            }
 
-        logging::debug("param_var:");
-        for (auto &kv: _param_var) {
-            logging::debug("  %s: vector(%d)",
-                kv.first.c_str(), kv.second->value().size());
+            logging::debug("param_var:");
+            for (auto &kv: _param_var) {
+                logging::debug("  %s: vector(%d)",
+                    kv.first.c_str(), kv.second->value().size());
+            }
         }
-#endif
     }
 
 protected:
     expr_type *_loss_expr = nullptr;
-    const std::map<std::string, matrix_type> *_feed_dict = nullptr;
+    optimization<numeric_type> *_opt = nullptr;
     int _n_samples = 0;
     int _batch_size = 256;
-    numeric_type _alpha = 0.1;
-    bool _show_mini_batch_loss = false;
+    bool _show_debug_log = false;
+    std::map<std::string, matrix_type> _feed_dict;
     std::map<std::string, varexpr_type *> _feed_var;
     std::map<std::string, varexpr_type *> _param_var;
     std::map<std::string, vector_type> _derivative;

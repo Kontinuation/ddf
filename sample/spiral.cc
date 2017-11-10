@@ -54,26 +54,23 @@ int main(int argc, char *argv[]) {
             DS, predict, var_l));
 
 
-    // construct optimizer
-    ddf::optimizer_bprop<double> optimizer;
+    // construct trainer
+    ddf::train_bprop<double> trainer;
+    ddf::sgd_opt<double> opt(alpha / 100);
+    trainer.set_batch_size(100);
     std::map<std::string, ddf::matrix<double> > feed_dict = {
         {"x", xs },
         {"l", ls }
     };
-    optimizer.minimize(loss.get(), &feed_dict);
-
-    // initial loss
-    double training_loss = optimizer.loss();
-    logging::info("initial loss: %f", training_loss);
+    trainer.minimize(loss.get(), feed_dict, &opt);
 
     // perform iterative optimization to reduce training loss
-    optimizer.set_learning_rate(alpha);
     for (int iter = 0; iter < n_iter; iter++) {
         clock_t start = clock();
-        optimizer.step(1);
+        trainer.step(1);
         clock_t end = clock();
         logging::info("iter: %d, loss: %f, cost: %f sec",
-            iter, optimizer.loss(),
+            iter, trainer.loss(),
             (double)(end - start) / CLOCKS_PER_SEC);
     }
 
