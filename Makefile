@@ -14,5 +14,8 @@ test:
 	mkdir -p bin
 	g++ -Iinclude test/test.cc src/logging.cc src/dataset.cc -o bin/test $(CC_FLAGS)
 
+pylib:
+	cd python && python setup.py build_ext --inplace
+
 clean:
 	rm -rf bin/
