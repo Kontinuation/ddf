@@ -7,6 +7,7 @@
 // feed it to an iterative optimization algorithm (such as SGD)
 
 #include "nd_array.hh"
+#include "op.hh"
 #include <vector>
 #include <algorithm>
 #include <cstring>

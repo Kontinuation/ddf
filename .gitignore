@@ -1,0 +1,8 @@
+.DS_Store
+bin
+data
+notebook
+.ipynb_checkpoints
+python/ddf.cpp
+python/ddf.so
+python/build
